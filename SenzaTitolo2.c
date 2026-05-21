@@ -13,12 +13,54 @@
 
 #define PORT    5201
 #define BACKLOG 8
+Mappa mappaGlobale;
+
+typedef struct messServer{
+     Mappa mappaPlayer;
+     Player p;
+}MessServer;
 
 static void *handle_client(void *arg) {
     int fd = *(int *)arg;
     free(arg);
-    char buf[1024];
-    for (;;) {
+    char buf[N*N];
+    Mappa mappaLocale;
+
+    int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
+    char lettera_random = simboli[rand() % num_simboli];
+
+    Colore colore_random = (Colore)((rand() % 12) + 4);
+
+    Player p = {
+        lettera_random,
+        5,
+        7,
+        colore_random
+    };
+
+    int posizione_riga;
+    int posizione_colonna;
+
+    do {
+
+        posizione_riga = rand() % N;
+        posizione_colonna = rand() % N;
+
+        if(mappaGlobale.mappa[posizione_riga][posizione_colonna] == cella_libera) {
+            p.colonna = posizione_colonna;
+            p.riga = posizione_riga;
+        }
+
+    } while(mappaGlobale.mappa[posizione_riga][posizione_colonna] != cella_libera);
+
+    mappaGlobale.mappa[p.riga][p.colonna] = p.lettera;
+    mappaLocale.mappa[p.riga][p.colonna] = p.lettera;
+
+    mappaGlobale.mappaPlayer[p.riga][p.colonna] = p.lettera;
+    mappaLocale.mappaPlayer[p.riga][p.colonna] = p.lettera;
+
+
+     for (;;) {
         ssize_t n = recv(fd, buf, sizeof(buf), 0);
         if (n == 0) break;
         if (n < 0) {
@@ -26,18 +68,24 @@ static void *handle_client(void *arg) {
             perror("recv");
             break;
         }
+    MessServer messServer;
+    messServer.p = p;
+    messServer.mappaPlayer = mappaLocale;
+
         ssize_t off = 0;
-        while (off < n) {
-            ssize_t w = send(fd, buf + off, (size_t)(n - off), MSG_NOSIGNAL);
+        while (off < sizeof(messServer)) {
+            ssize_t w = send(fd, &messServer, sizeof(messServer), MSG_NOSIGNAL);
             if (w < 0) {
                 if (errno == EINTR) continue;
                 perror("send");
                 close(fd);
                 return NULL;
             }
-            off += w;
+           off += w;
         }
     }
+    
+
     close(fd);
     return NULL;
 }
@@ -59,6 +107,24 @@ int main(void) {
 
     printf("Server in ascolto su 0.0.0.0:%d (thread per connessione)\n", PORT);
 
+    int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
+
+    srand(time(NULL));
+
+    for(int i = 0; i < N; i++) {
+        for(int j = 0; j < N; j++) {
+
+            if((rand() % 100) > 20)
+                mappaGlobale.mappa[i][j] = simboli[0];
+            else
+                mappaGlobale.mappa[i][j] = simboli[1];
+
+            //mappaLocale.mappaPlayer[i][j] = '0';
+        }
+    }
+
+    
+
     for (;;) {
         int c = accept(s, NULL, NULL);
         if (c < 0) { if (errno == EINTR) continue; perror("accept"); continue; }
@@ -71,6 +137,8 @@ int main(void) {
         }
         *fdp = c;
 
+         printf("Connesso");
+
         pthread_t tid;
         int rc = pthread_create(&tid, NULL, handle_client, fdp);
         if (rc != 0) {
@@ -80,13 +148,13 @@ int main(void) {
             continue;
         }
         pthread_detach(tid);
+
+	
     }
 }
 
 
-void rivelaNebbia(Player p,
-                  char mappa[N][N],
-                  char mappaGlobale[N][N]) {
+void rivelaNebbia(Player p, char mappa[N][N], char mappaGlobale[N][N]) {
 
     for(int i = p.riga - 1; i <= p.riga + 1; i++) {
 
@@ -102,9 +170,7 @@ void rivelaNebbia(Player p,
 }
 
 
-bool verificaMossa(int riga,
-                   int colonna,
-                   char mappa[N][N]) {
+bool verificaMossa(int riga, int colonna, char mappa[N][N]) {
 
     if(colonna < 0 || riga < 0 ||
        colonna > N - 1 || riga > N - 1)
