@@ -184,13 +184,9 @@ int main() {
                 break;
         }
 
-        rivelaNebbia(p,
-                      mappaLocale.mappa,
-                      mappa.mappa);
+        rivelaNebbia(p, mappaLocale.mappa, mappa.mappa);
 
-        if(verificaMossa(riga_nuova,
-                         colonna_nuova,
-                         mappa.mappa)) {
+        if(verificaMossa(riga_nuova, colonna_nuova, mappa.mappa)) {
 
             mappaLocale.mappa[p.riga][p.colonna] = cella_libera;
 
@@ -201,24 +197,16 @@ int main() {
 
             mappaLocale.mappa[p.riga][p.colonna] = p.lettera;
 
-            rivelaNebbia(p,
-                          mappaLocale.mappa,
-                          mappa.mappa);
+            rivelaNebbia(p, mappaLocale.mappa, mappa.mappa);
         }
 
-        stampaMappa(p,
-                    mappaLocale.mappa,
-                    mappaLocale.mappaPlayer);
+        stampaMappa(p, mappaLocale.mappa, mappaLocale.mappaPlayer);
     }
 
     return 0;
 }
 
-Colore getColoreCasella(Player p,
-                        int i,
-                        int j,
-                        char mappaPlayer[N][N],
-                        char mappa[N][N]) {
+Colore getColoreCasella(Player p, int i, int j, char mappaPlayer[N][N], char mappa[N][N]) {
 
     if(mappa[i][j] == ' ')
         return GRIGIO;
@@ -233,9 +221,7 @@ Colore getColoreCasella(Player p,
         return BLACK;
 }
 
-void rivelaNebbia(Player p,
-                  char mappa[N][N],
-                  char mappaGlobale[N][N]) {
+void rivelaNebbia(Player p, char mappa[N][N], char mappaGlobale[N][N]) {
 
     for(int i = p.riga - 1; i <= p.riga + 1; i++) {
 
@@ -250,34 +236,23 @@ void rivelaNebbia(Player p,
     }
 }
 
-void stampaMappa(Player p,
-                 char mappa[N][N],
-                 char mappaPlayer[N][N]) {
+void stampaMappa(Player p, char mappa[N][N], char mappaPlayer[N][N]) {
 
     for(int i = 0; i < N; i++) {
 
         for(int j = 0; j < N; j++) {
 
             Colore colore =
-                getColoreCasella(p,
-                                 i,
-                                 j,
-                                 mappaPlayer,
-                                 mappa);
+                getColoreCasella(p, i, j, mappaPlayer, mappa);
 
-            printf("%s%c %s",
-                   colori[colore],
-                   mappa[i][j],
-                   colori[0]);
+            printf("%s%c %s", colori[colore], mappa[i][j], colori[0]);
         }
 
         printf("\n");
     }
 }
 
-bool verificaMossa(int riga,
-                   int colonna,
-                   char mappa[N][N]) {
+bool verificaMossa(int riga, int colonna, char mappa[N][N]) {
 
     if(colonna < 0 || riga < 0 ||
        colonna > N - 1 || riga > N - 1)
