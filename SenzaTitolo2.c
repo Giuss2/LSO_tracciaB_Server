@@ -20,6 +20,11 @@ typedef struct messServer{
      Player p;
 }MessServer;
 
+typedef struct messClient{
+    char direzione;
+    bool movimento;
+}MessClient;
+
 static void *handle_client(void *arg) {
     int fd = *(int *)arg;
     free(arg);
@@ -59,9 +64,9 @@ static void *handle_client(void *arg) {
     mappaGlobale.mappaPlayer[p.riga][p.colonna] = p.lettera;
     mappaLocale.mappaPlayer[p.riga][p.colonna] = p.lettera;
 
-
+    MessClient messClient;
      for (;;) {
-        ssize_t n = recv(fd, buf, sizeof(buf), 0);
+        ssize_t n = recv(fd, &messClient, sizeof(messClient), 0);
         if (n == 0) break;
         if (n < 0) {
             if (errno == EINTR) continue;

@@ -9,4 +9,4 @@ RUN gcc SenzaTitolo2.c -o server
 
 EXPOSE 5201
 
-CMD ./server
+CMD ["./server"]
