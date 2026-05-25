@@ -25,6 +25,8 @@ typedef struct messClient{
     bool movimento;
 }MessClient;
 
+void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
+
 static void *handle_client(void *arg) {
     int fd = *(int *)arg;
     free(arg);
@@ -76,6 +78,7 @@ static void *handle_client(void *arg) {
     MessServer messServer;
     messServer.p = p;
     messServer.mappaPlayer = mappaLocale;
+    invioMappaLocale(&p, &mappaLocale, &mappaGlobale, messClient.direzione);
 
         ssize_t off = 0;
         while (off < sizeof(messServer)) {
@@ -159,11 +162,11 @@ int main(void) {
 }
 
 
-void rivelaNebbia(Player p, char mappa[N][N], char mappaGlobale[N][N]) {
+void rivelaNebbia(Player *p, char mappa[N][N], char mappaGlobale[N][N]) {
 
-    for(int i = p.riga - 1; i <= p.riga + 1; i++) {
+    for(int i = p->riga - 1; i <= p->riga + 1; i++) {
 
-        for(int j = p.colonna - 1; j <= p.colonna + 1; j++) {
+        for(int j = p->colonna - 1; j <= p->colonna + 1; j++) {
 
             if(j < 0 || i < 0 || j > N - 1 || i > N - 1)
                 continue;
@@ -186,3 +189,49 @@ bool verificaMossa(int riga, int colonna, char mappa[N][N]) {
 
     return true;
 }
+
+void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione) {
+        int riga_nuova = p->riga;
+        int colonna_nuova = p->colonna;
+
+        switch(direzione) {
+
+            case 'A':
+            case 'a':
+                colonna_nuova--;
+                break;
+
+            case 'S':
+            case 's':
+                riga_nuova++;
+                break;
+
+            case 'W':
+            case 'w':
+                riga_nuova--;
+                break;
+
+            case 'D':
+            case 'd':
+                colonna_nuova++;
+                break;
+        }
+
+        rivelaNebbia(p, mappaLocale->mappa, mappa->mappa);
+
+        if(verificaMossa(riga_nuova, colonna_nuova, mappa->mappa)) {
+
+            mappaLocale->mappa[p->riga][p->colonna] = cella_libera;
+
+            p->colonna = colonna_nuova;
+            p->riga = riga_nuova;
+
+            mappaLocale->mappaPlayer[p->riga][p->colonna] = p->lettera;
+
+            mappaLocale->mappa[p->riga][p->colonna] = p->lettera;
+
+            rivelaNebbia(p, mappaLocale->mappa, mappa->mappa);
+        }
+
+        
+    }

@@ -1,6 +1,6 @@
 
 #define N 20
-#define MURO (char)254
+#define MURO 'X'
 
 typedef enum {
     RESET_COLOR,
@@ -53,18 +53,18 @@ typedef struct mappa {
     char mappaPlayer[N][N];
 } Mappa;
 
-const char cella_libera = 250;
+const char cella_libera = '.';
 char simboli[] = {
         cella_libera,
         MURO,
 
         'A','B','C','D','E','F','G','H','I','J',
         'K','L','M','N','O','P','Q','R','S','T',
-        'U','V','W','X','Y','Z',
+        'U','V','W','Y','Z',
 
         'a','b','c','d','e','f','g','h','i','j',
         'k','l','m','n','o','p','q','r','s','t',
-        'u','v','w','x','y','z'
+        'u','v','w','y','z'
     };
 
 
@@ -72,7 +72,7 @@ char simboli[] = {
 
 Colore getColoreCasella(Player p, int i, int j, char mappaPlayer[N][N], char mappa[N][N]);
 
-void rivelaNebbia(Player p, char mappa[N][N], char mappaGlobale[N][N]);
+void rivelaNebbia(Player *p, char mappa[N][N], char mappaGlobale[N][N]);
 
 bool verificaMossa(int riga, int colonna, char mappa[N][N]);
 
