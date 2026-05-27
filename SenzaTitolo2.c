@@ -33,9 +33,13 @@ static void *handle_client(void *arg) {
     char buf[N*N];
     Mappa mappaLocale;
 
+    
+    // Inizializza tutta la mappa locale con caratteri spazio ' '
+    memset(mappaLocale.mappa, ' ', sizeof(mappaLocale.mappa));
+    memset(mappaLocale.mappaPlayer, ' ', sizeof(mappaLocale.mappaPlayer));
+
     int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
     char lettera_random = simboli[rand() % num_simboli];
-
     Colore colore_random = (Colore)((rand() % 12) + 4);
 
     Player p = {
@@ -88,7 +92,7 @@ static void *handle_client(void *arg) {
 
     MessServer messServer;
     messServer.p = p;
-    messServer.mappaPlayer = mappaGlobale;  //DA CAMBIARE !!!!!!!!!!!!!!!!!!!!!!!!
+    messServer.mappaPlayer = mappaLocale;  
 
 // Invia i dati aggiornati (o iniziali) al client
         ssize_t off = 0;
@@ -210,27 +214,26 @@ void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char d
         // --- SPOSTAMENTI ORIZZONTALI (Colonne) ---
         case 'A':
         case 'a':
-            colonna_nuova--; // A sinistra -> diminuisci la colonna
+            colonna_nuova--; 
             break;
 
         case 'D':
         case 'd':
-            colonna_nuova++; // A destra -> aumenta la colonna
+            colonna_nuova++; 
             break;
 
         // --- SPOSTAMENTI VERTICALI (Righe) ---
         case 'W':
         case 'w':
-            riga_nuova--;    // Su -> diminuisci la riga (vai verso la riga 0)
+            riga_nuova--;   
             break;
 
         case 'S':
         case 's':
-            riga_nuova++;    // Giù -> aumenta la riga
+            riga_nuova++; 
             break;
     }
 
-    // Il resto della funzione rimane invariato...
     rivelaNebbia(p, mappaLocale->mappa, mappaGlobale->mappa);
 
     if(verificaMossa(riga_nuova, colonna_nuova, mappaGlobale->mappa)) {
@@ -248,41 +251,4 @@ void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char d
 
         rivelaNebbia(p, mappaLocale->mappa, mappaGlobale->mappa);
     }
-}
-Colore getColoreCasella(Player *p, int i, int j, char mappaPlayer[N][N], char mappa[N][N]) {
-
-    if(mappa[i][j] == ' ')
-        return GRIGIO;
-
-    else if(mappaPlayer[i][j] == p->lettera)
-        return p->colorePlayer;
-
-    else if(mappa[i][j] == MURO)
-        return BIANCO;
-
-    else
-        return BLACK;
-}
-    void stampaMappa(Player *p,
-                 char mappa[N][N],
-                 char mappaPlayer[N][N]) {
-
-    printf("\n\n");
-
-    for(int i = 0; i < N; i++) {
-
-        for(int j = 0; j < N; j++) {
-
-            Colore colore =
-                getColoreCasella(p, i, j,
-                                 mappaPlayer,
-                                 mappa);
-
-            printf("%s %-2c%s", colori[colore], mappa[i][j], colori[RESET_COLOR]);
-        }
-
-        printf("\n");
-    }
-
-    fflush(stdout);
 }
