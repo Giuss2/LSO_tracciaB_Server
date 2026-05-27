@@ -75,12 +75,24 @@ static void *handle_client(void *arg) {
             perror("recv");
             break;
         }
+    printf("Ricevuto: %c, movimento: %d\n", messClient.direzione, messClient.movimento);
+    
+
+// SE il client richiede il movimento, aggiorna le coordinate, altrimenti rivela solo la nebbia iniziale
+    if (messClient.movimento) {
+        invioMappaLocale(&p, &mappaLocale, &mappaGlobale, messClient.direzione);
+    } else {
+    // Solo per la prima mappa statica
+        rivelaNebbia(&p, mappaLocale.mappa, mappaGlobale.mappa);
+    }
+
     MessServer messServer;
     messServer.p = p;
-    messServer.mappaPlayer = mappaLocale;
-    invioMappaLocale(&p, &mappaLocale, &mappaGlobale, messClient.direzione);
+    messServer.mappaPlayer = mappaGlobale;  //DA CAMBIARE !!!!!!!!!!!!!!!!!!!!!!!!
 
+// Invia i dati aggiornati (o iniziali) al client
         ssize_t off = 0;
+
         while (off < sizeof(messServer)) {
             ssize_t w = send(fd, &messServer, sizeof(messServer), MSG_NOSIGNAL);
             if (w < 0) {
@@ -190,48 +202,87 @@ bool verificaMossa(int riga, int colonna, char mappa[N][N]) {
     return true;
 }
 
-void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione) {
-        int riga_nuova = p->riga;
-        int colonna_nuova = p->colonna;
+void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char direzione) {
+    int riga_nuova = p->riga;
+    int colonna_nuova = p->colonna;
 
-        switch(direzione) {
+    switch(direzione) {
+        // --- SPOSTAMENTI ORIZZONTALI (Colonne) ---
+        case 'A':
+        case 'a':
+            colonna_nuova--; // A sinistra -> diminuisci la colonna
+            break;
 
-            case 'A':
-            case 'a':
-                colonna_nuova--;
-                break;
+        case 'D':
+        case 'd':
+            colonna_nuova++; // A destra -> aumenta la colonna
+            break;
 
-            case 'S':
-            case 's':
-                riga_nuova++;
-                break;
+        // --- SPOSTAMENTI VERTICALI (Righe) ---
+        case 'W':
+        case 'w':
+            riga_nuova--;    // Su -> diminuisci la riga (vai verso la riga 0)
+            break;
 
-            case 'W':
-            case 'w':
-                riga_nuova--;
-                break;
-
-            case 'D':
-            case 'd':
-                colonna_nuova++;
-                break;
-        }
-
-        rivelaNebbia(p, mappaLocale->mappa, mappa->mappa);
-
-        if(verificaMossa(riga_nuova, colonna_nuova, mappa->mappa)) {
-
-            mappaLocale->mappa[p->riga][p->colonna] = cella_libera;
-
-            p->colonna = colonna_nuova;
-            p->riga = riga_nuova;
-
-            mappaLocale->mappaPlayer[p->riga][p->colonna] = p->lettera;
-
-            mappaLocale->mappa[p->riga][p->colonna] = p->lettera;
-
-            rivelaNebbia(p, mappaLocale->mappa, mappa->mappa);
-        }
-
-        
+        case 'S':
+        case 's':
+            riga_nuova++;    // Giù -> aumenta la riga
+            break;
     }
+
+    // Il resto della funzione rimane invariato...
+    rivelaNebbia(p, mappaLocale->mappa, mappaGlobale->mappa);
+
+    if(verificaMossa(riga_nuova, colonna_nuova, mappaGlobale->mappa)) {
+        mappaLocale->mappa[p->riga][p->colonna] = cella_libera;
+        mappaGlobale->mappa[p->riga][p->colonna] = cella_libera;
+
+        p->colonna = colonna_nuova;
+        p->riga = riga_nuova;
+
+        mappaLocale->mappaPlayer[p->riga][p->colonna] = p->lettera;
+        mappaGlobale->mappaPlayer[p->riga][p->colonna] = p->lettera;
+
+        mappaLocale->mappa[p->riga][p->colonna] = p->lettera;
+        mappaGlobale->mappa[p->riga][p->colonna] = p->lettera;
+
+        rivelaNebbia(p, mappaLocale->mappa, mappaGlobale->mappa);
+    }
+}
+Colore getColoreCasella(Player *p, int i, int j, char mappaPlayer[N][N], char mappa[N][N]) {
+
+    if(mappa[i][j] == ' ')
+        return GRIGIO;
+
+    else if(mappaPlayer[i][j] == p->lettera)
+        return p->colorePlayer;
+
+    else if(mappa[i][j] == MURO)
+        return BIANCO;
+
+    else
+        return BLACK;
+}
+    void stampaMappa(Player *p,
+                 char mappa[N][N],
+                 char mappaPlayer[N][N]) {
+
+    printf("\n\n");
+
+    for(int i = 0; i < N; i++) {
+
+        for(int j = 0; j < N; j++) {
+
+            Colore colore =
+                getColoreCasella(p, i, j,
+                                 mappaPlayer,
+                                 mappa);
+
+            printf("%s %-2c%s", colori[colore], mappa[i][j], colori[RESET_COLOR]);
+        }
+
+        printf("\n");
+    }
+
+    fflush(stdout);
+}
