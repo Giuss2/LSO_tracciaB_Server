@@ -57,7 +57,7 @@ static void *handle_client(void *arg) {
     int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
     char lettera_random = simboli[rand_r(&seed) % num_simboli];
     Colore colore_random = (Colore)((rand_r(&seed) % 12) + 4);
-    printf("Lettera random: %c, Colore random: %d\n", lettera_random, colore_random);
+    
 
     Player p = {
         lettera_random,
@@ -101,7 +101,7 @@ static void *handle_client(void *arg) {
             perror("recv");
             break;
         }
-    printf("Ricevuto: %c, movimento: %d\n", messClient.direzione, messClient.movimento);
+    
     
     
 // SE il client richiede il movimento, aggiorna le coordinate, altrimenti rivela solo la nebbia iniziale
