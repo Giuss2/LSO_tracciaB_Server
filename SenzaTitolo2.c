@@ -10,14 +10,19 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include "mappa.h"
+#include <time.h>
 
 #define PORT    5201
 #define BACKLOG 8
+#define NUM_PLAYERS 12
+pthread_mutex_t mtx;
 Mappa mappaGlobale;
+Player* players[NUM_PLAYERS];
 
 typedef struct messServer{
      Mappa mappaPlayer;
      Player p;
+     Player players[NUM_PLAYERS];
 }MessServer;
 
 typedef struct messClient{
@@ -26,6 +31,16 @@ typedef struct messClient{
 }MessClient;
 
 void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
+void addPlayer(Player* p){
+    pthread_mutex_lock(&mtx);
+    for(int i = 0; i < NUM_PLAYERS; i++){
+        if(players[i] == NULL){
+            players[i] = p;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&mtx);
+}
 
 static void *handle_client(void *arg) {
     int fd = *(int *)arg;
@@ -33,14 +48,16 @@ static void *handle_client(void *arg) {
     char buf[N*N];
     Mappa mappaLocale;
 
-    
+    unsigned int seed = (unsigned int)time(NULL) ^ (unsigned long)pthread_self();
+
     // Inizializza tutta la mappa locale con caratteri spazio ' '
     memset(mappaLocale.mappa, ' ', sizeof(mappaLocale.mappa));
     memset(mappaLocale.mappaPlayer, ' ', sizeof(mappaLocale.mappaPlayer));
 
     int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
-    char lettera_random = simboli[rand() % num_simboli];
-    Colore colore_random = (Colore)((rand() % 12) + 4);
+    char lettera_random = simboli[rand_r(&seed) % num_simboli];
+    Colore colore_random = (Colore)((rand_r(&seed) % 12) + 4);
+    printf("Lettera random: %c, Colore random: %d\n", lettera_random, colore_random);
 
     Player p = {
         lettera_random,
@@ -49,13 +66,16 @@ static void *handle_client(void *arg) {
         colore_random
     };
 
+    addPlayer(&p);
+
     int posizione_riga;
     int posizione_colonna;
 
+    pthread_mutex_lock(&mtx);
     do {
 
-        posizione_riga = rand() % N;
-        posizione_colonna = rand() % N;
+        posizione_riga = rand_r(&seed) % N;
+        posizione_colonna = rand_r(&seed) % N;
 
         if(mappaGlobale.mappa[posizione_riga][posizione_colonna] == cella_libera) {
             p.colonna = posizione_colonna;
@@ -70,6 +90,8 @@ static void *handle_client(void *arg) {
     mappaGlobale.mappaPlayer[p.riga][p.colonna] = p.lettera;
     mappaLocale.mappaPlayer[p.riga][p.colonna] = p.lettera;
 
+    pthread_mutex_unlock(&mtx);
+
     MessClient messClient;
      for (;;) {
         ssize_t n = recv(fd, &messClient, sizeof(messClient), 0);
@@ -81,18 +103,28 @@ static void *handle_client(void *arg) {
         }
     printf("Ricevuto: %c, movimento: %d\n", messClient.direzione, messClient.movimento);
     
-
+    
 // SE il client richiede il movimento, aggiorna le coordinate, altrimenti rivela solo la nebbia iniziale
     if (messClient.movimento) {
         invioMappaLocale(&p, &mappaLocale, &mappaGlobale, messClient.direzione);
     } else {
+        pthread_mutex_lock(&mtx);
     // Solo per la prima mappa statica
-        rivelaNebbia(&p, mappaLocale.mappa, mappaGlobale.mappa);
+        rivelaNebbia(&p, &mappaLocale, &mappaGlobale);
+        pthread_mutex_unlock(&mtx);
     }
+    
 
     MessServer messServer;
     messServer.p = p;
     messServer.mappaPlayer = mappaLocale;  
+    
+    for(int i = 0; i < NUM_PLAYERS; i++){
+        if(players[i] != NULL){
+            messServer.players[i] = *players[i];
+        }else
+            messServer.players[i].lettera = '\0'; 
+    }
 
 // Invia i dati aggiornati (o iniziali) al client
         ssize_t off = 0;
@@ -115,6 +147,16 @@ static void *handle_client(void *arg) {
 }
 
 int main(void) {
+
+    pthread_mutexattr_t attr;
+    Player* p = NULL;
+
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+
+    pthread_mutex_init(&mtx, &attr);
+
+
     signal(SIGPIPE, SIG_IGN);
 
     int s = socket(AF_INET, SOCK_STREAM, 0);
@@ -133,12 +175,14 @@ int main(void) {
 
     int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
 
-    srand(time(NULL));
+    unsigned int seed = time(NULL) ^ pthread_self();
+
+    rand_r(&seed);
 
     for(int i = 0; i < N; i++) {
         for(int j = 0; j < N; j++) {
 
-            if((rand() % 100) > 20)
+            if((rand_r(&seed) % 100) > 20)
                 mappaGlobale.mappa[i][j] = simboli[0];
             else
                 mappaGlobale.mappa[i][j] = simboli[1];
@@ -147,7 +191,9 @@ int main(void) {
         }
     }
 
-    
+    for(int i=0; i < NUM_PLAYERS; i++){
+        players[i] = NULL;
+    }
 
     for (;;) {
         int c = accept(s, NULL, NULL);
@@ -175,10 +221,12 @@ int main(void) {
 
 	
     }
+
+    pthread_mutexattr_destroy(&attr);
 }
 
 
-void rivelaNebbia(Player *p, char mappa[N][N], char mappaGlobale[N][N]) {
+void rivelaNebbia(Player *p, Mappa* mappa, Mappa* mappaGlobale){
 
     for(int i = p->riga - 1; i <= p->riga + 1; i++) {
 
@@ -187,10 +235,15 @@ void rivelaNebbia(Player *p, char mappa[N][N], char mappaGlobale[N][N]) {
             if(j < 0 || i < 0 || j > N - 1 || i > N - 1)
                 continue;
 
-            if(mappa[i][j] == ' ')
-                mappa[i][j] = mappaGlobale[i][j];
+            if(mappa->mappa[i][j] == ' '){
+                mappa->mappa[i][j] = mappaGlobale->mappa[i][j];
+                mappa->mappaPlayer[i][j] = mappaGlobale->mappaPlayer[i][j];
+            }
+                
+
         }
     }
+   
 }
 
 
@@ -202,11 +255,16 @@ bool verificaMossa(int riga, int colonna, char mappa[N][N]) {
 
     if(mappa[riga][colonna] == MURO)
         return false;
+    
+    if(mappa[riga][colonna] != cella_libera)
+        return false;
 
     return true;
 }
 
 void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char direzione) {
+    pthread_mutex_lock(&mtx);
+
     int riga_nuova = p->riga;
     int colonna_nuova = p->colonna;
 
@@ -234,7 +292,7 @@ void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char d
             break;
     }
 
-    rivelaNebbia(p, mappaLocale->mappa, mappaGlobale->mappa);
+    rivelaNebbia(p, mappaLocale, mappaGlobale);
 
     if(verificaMossa(riga_nuova, colonna_nuova, mappaGlobale->mappa)) {
         mappaLocale->mappa[p->riga][p->colonna] = cella_libera;
@@ -249,6 +307,8 @@ void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char d
         mappaLocale->mappa[p->riga][p->colonna] = p->lettera;
         mappaGlobale->mappa[p->riga][p->colonna] = p->lettera;
 
-        rivelaNebbia(p, mappaLocale->mappa, mappaGlobale->mappa);
+        rivelaNebbia(p, mappaLocale, mappaGlobale);
     }
+
+    pthread_mutex_unlock(&mtx);
 }

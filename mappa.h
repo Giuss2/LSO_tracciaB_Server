@@ -72,7 +72,7 @@ char simboli[] = {
 
 Colore getColoreCasella(Player *p, int i, int j, char mappaPlayer[N][N], char mappa[N][N]);
 
-void rivelaNebbia(Player *p, char mappa[N][N], char mappaGlobale[N][N]);
+void rivelaNebbia(Player *p, Mappa* mappa, Mappa* mappaGlobale);
 
 bool verificaMossa(int riga, int colonna, char mappa[N][N]);
 
