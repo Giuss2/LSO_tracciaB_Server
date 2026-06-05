@@ -30,7 +30,59 @@ typedef struct messClient{
     bool movimento;
 }MessClient;
 
+static ssize_t writen_all(int fd, MessServer *mess) {
+
+    size_t off = 0;
+
+    while (off < sizeof(MessServer)) {
+
+        ssize_t w = send(fd,
+                         ((char*)mess) + off,
+                         sizeof(MessServer) - off,
+                         0);
+
+        if (w < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+
+        off += w;
+    }
+
+    return off;
+}
+
+static ssize_t readn_all(int fd, void *buf, size_t len)
+{
+    size_t off = 0;
+
+    while (off < len) {
+
+        ssize_t r = recv(
+            fd,
+            ((char*)buf) + off,
+            len - off,
+            0
+        );
+
+        if (r == 0)
+            return 0;
+
+        if (r < 0) {
+            if (errno == EINTR)
+                continue;
+            return -1;
+        }
+
+        off += r;
+    }
+
+    return off;
+}
+
+
 void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
+
 void addPlayer(Player* p){
     pthread_mutex_lock(&mtx);
     for(int i = 0; i < NUM_PLAYERS; i++){
@@ -58,15 +110,15 @@ static void *handle_client(void *arg) {
     char lettera_random = simboli[rand_r(&seed) % num_simboli];
     Colore colore_random = (Colore)((rand_r(&seed) % 12) + 4);
     
-
-    Player p = {
+    Player *p = malloc(sizeof(Player));
+    *p = (Player) {
         lettera_random,
         5,
         7,
         colore_random
     };
 
-    addPlayer(&p);
+    addPlayer(p);
 
     int posizione_riga;
     int posizione_colonna;
@@ -78,69 +130,56 @@ static void *handle_client(void *arg) {
         posizione_colonna = rand_r(&seed) % N;
 
         if(mappaGlobale.mappa[posizione_riga][posizione_colonna] == cella_libera) {
-            p.colonna = posizione_colonna;
-            p.riga = posizione_riga;
+            p->colonna = posizione_colonna;
+            p->riga = posizione_riga;
         }
 
     } while(mappaGlobale.mappa[posizione_riga][posizione_colonna] != cella_libera);
 
-    mappaGlobale.mappa[p.riga][p.colonna] = p.lettera;
-    mappaLocale.mappa[p.riga][p.colonna] = p.lettera;
+    mappaGlobale.mappa[p->riga][p->colonna] = p->lettera;
+    mappaLocale.mappa[p->riga][p->colonna] = p->lettera;
 
-    mappaGlobale.mappaPlayer[p.riga][p.colonna] = p.lettera;
-    mappaLocale.mappaPlayer[p.riga][p.colonna] = p.lettera;
+    mappaGlobale.mappaPlayer[p->riga][p->colonna] = p->lettera;
+    mappaLocale.mappaPlayer[p->riga][p->colonna] = p->lettera;
 
     pthread_mutex_unlock(&mtx);
 
     MessClient messClient;
-     for (;;) {
-        ssize_t n = recv(fd, &messClient, sizeof(messClient), 0);
-        if (n == 0) break;
-        if (n < 0) {
-            if (errno == EINTR) continue;
-            perror("recv");
-            break;
-        }
-    
-    
-    
-// SE il client richiede il movimento, aggiorna le coordinate, altrimenti rivela solo la nebbia iniziale
+    for (;;) {
+
+    ssize_t n = readn_all(fd, &messClient, sizeof(messClient));
+    if (n == 0)
+        break;
+
+    if (n < 0) {
+        perror("recv");
+        break;
+    }
+
     if (messClient.movimento) {
-        invioMappaLocale(&p, &mappaLocale, &mappaGlobale, messClient.direzione);
+        invioMappaLocale(p, &mappaLocale, &mappaGlobale, messClient.direzione);
     } else {
         pthread_mutex_lock(&mtx);
-    // Solo per la prima mappa statica
-        rivelaNebbia(&p, &mappaLocale, &mappaGlobale);
+        rivelaNebbia(p, &mappaLocale, &mappaGlobale);
         pthread_mutex_unlock(&mtx);
     }
-    
 
     MessServer messServer;
-    messServer.p = p;
-    messServer.mappaPlayer = mappaLocale;  
-    
-    for(int i = 0; i < NUM_PLAYERS; i++){
-        if(players[i] != NULL){
+    messServer.p = *p;
+    messServer.mappaPlayer = mappaLocale;
+
+    for (int i = 0; i < NUM_PLAYERS; i++) {
+        if (players[i])
             messServer.players[i] = *players[i];
-        }else
-            messServer.players[i].lettera = '\0'; 
+        else
+            messServer.players[i].lettera = '\0';
     }
 
-// Invia i dati aggiornati (o iniziali) al client
-        ssize_t off = 0;
-
-        while (off < sizeof(messServer)) {
-            ssize_t w = send(fd, &messServer, sizeof(messServer), MSG_NOSIGNAL);
-            if (w < 0) {
-                if (errno == EINTR) continue;
-                perror("send");
-                close(fd);
-                return NULL;
-            }
-           off += w;
-        }
+    if (writen_all(fd, &messServer)<0) {
+        perror("send");
+        break;
     }
-    
+}
 
     close(fd);
     return NULL;
@@ -195,7 +234,7 @@ int main(void) {
         players[i] = NULL;
     }
 
-    for (;;) {
+    for(;;) {
         int c = accept(s, NULL, NULL);
         if (c < 0) { if (errno == EINTR) continue; perror("accept"); continue; }
 

@@ -1,2 +1,1 @@
-docker image build -t lso_server .
-docker run --rm -it -p 5201:5201 lso_server
+docker image build -t lso_server . && docker run --rm -it -p 5201:5201 lso_server
