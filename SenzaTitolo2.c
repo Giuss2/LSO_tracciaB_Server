@@ -11,18 +11,31 @@
 #include <stdbool.h>
 #include "mappa.h"
 #include <time.h>
+#include <stdatomic.h>
 
 #define PORT    5201
 #define BACKLOG 8
 #define NUM_PLAYERS 12
+
 pthread_mutex_t mtx;
+atomic_bool game_over = false;
+struct timespec end_time;
+
 Mappa mappaGlobale;
 Player* players[NUM_PLAYERS];
+int player_fds[NUM_PLAYERS];
+
+
+typedef enum {
+    MSG_UPDATE = 0,
+    MSG_GAME_OVER = 1
+} MsgType;
 
 typedef struct messServer{
      Mappa mappaPlayer;
      Player p;
      Player players[NUM_PLAYERS];
+     MsgType type;
 }MessServer;
 
 typedef struct messClient{
@@ -30,68 +43,34 @@ typedef struct messClient{
     bool movimento;
 }MessClient;
 
-static ssize_t writen_all(int fd, MessServer *mess) {
-
-    size_t off = 0;
-
-    while (off < sizeof(MessServer)) {
-
-        ssize_t w = send(fd,
-                         ((char*)mess) + off,
-                         sizeof(MessServer) - off,
-                         0);
-
-        if (w < 0) {
-            if (errno == EINTR) continue;
-            return -1;
-        }
-
-        off += w;
-    }
-
-    return off;
-}
-
-static ssize_t readn_all(int fd, void *buf, size_t len)
-{
-    size_t off = 0;
-
-    while (off < len) {
-
-        ssize_t r = recv(
-            fd,
-            ((char*)buf) + off,
-            len - off,
-            0
-        );
-
-        if (r == 0)
-            return 0;
-
-        if (r < 0) {
-            if (errno == EINTR)
-                continue;
-            return -1;
-        }
-
-        off += r;
-    }
-
-    return off;
-}
-
-
+int check_game_over();
+static ssize_t writen_all(int fd, MessServer *mess);
+static ssize_t readn_all(int fd, void *buf, size_t len);
 void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
+void addPlayer(Player* p);
+void broadcast_game_over();
 
-void addPlayer(Player* p){
-    pthread_mutex_lock(&mtx);
-    for(int i = 0; i < NUM_PLAYERS; i++){
-        if(players[i] == NULL){
-            players[i] = p;
+void *timer_thread(void *arg) {
+    (void)arg;
+
+    while (!game_over) {
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+
+        if (now.tv_sec > end_time.tv_sec ||
+           (now.tv_sec == end_time.tv_sec &&
+            now.tv_nsec >= end_time.tv_nsec)) {
             break;
         }
+
+        usleep(100000);
     }
-    pthread_mutex_unlock(&mtx);
+
+    atomic_store(&game_over, true);
+    broadcast_game_over();
+
+    printf("GAME OVER\n");
+    return NULL;
 }
 
 static void *handle_client(void *arg) {
@@ -99,6 +78,8 @@ static void *handle_client(void *arg) {
     free(arg);
     char buf[N*N];
     Mappa mappaLocale;
+
+    
 
     unsigned int seed = (unsigned int)time(NULL) ^ (unsigned long)pthread_self();
 
@@ -145,7 +126,9 @@ static void *handle_client(void *arg) {
     pthread_mutex_unlock(&mtx);
 
     MessClient messClient;
-    for (;;) {
+    while (!game_over) {
+          if (atomic_load(&game_over))
+        break;
 
     ssize_t n = readn_all(fd, &messClient, sizeof(messClient));
     if (n == 0)
@@ -181,6 +164,17 @@ static void *handle_client(void *arg) {
     }
 }
 
+pthread_mutex_lock(&mtx);
+
+for (int i = 0; i < NUM_PLAYERS; i++) {
+    if (player_fds[i] == fd) {
+        player_fds[i] = -1;
+        players[i] = NULL;
+        break;
+    }
+}
+
+pthread_mutex_unlock(&mtx);
     close(fd);
     return NULL;
 }
@@ -210,6 +204,16 @@ int main(void) {
     if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) { perror("bind"); return 1; }
     if (listen(s, BACKLOG) < 0) { perror("listen"); return 1; }
 
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+    end_time.tv_sec += 30000; // durata partita
+
+    pthread_t timer;
+    pthread_create(&timer, NULL, timer_thread, NULL);
+    pthread_detach(timer);
+
+    pthread_mutex_lock(&mtx);
+
+
     printf("Server in ascolto su 0.0.0.0:%d (thread per connessione)\n", PORT);
 
     int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
@@ -232,11 +236,24 @@ int main(void) {
 
     for(int i=0; i < NUM_PLAYERS; i++){
         players[i] = NULL;
+        player_fds[i] = -1;
     }
+
+   
 
     for(;;) {
         int c = accept(s, NULL, NULL);
         if (c < 0) { if (errno == EINTR) continue; perror("accept"); continue; }
+
+
+for (int i = 0; i < NUM_PLAYERS; i++) {
+    if (player_fds[i] == -1) {
+        player_fds[i] = c;
+        break;
+    }
+}
+
+pthread_mutex_unlock(&mtx);
 
         int *fdp = malloc(sizeof(int));
         if (!fdp) {
@@ -347,6 +364,100 @@ void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char d
         mappaGlobale->mappa[p->riga][p->colonna] = p->lettera;
 
         rivelaNebbia(p, mappaLocale, mappaGlobale);
+    }
+
+    pthread_mutex_unlock(&mtx);
+}
+
+static ssize_t writen_all(int fd, MessServer *mess) {
+
+    size_t off = 0;
+
+    while (off < sizeof(MessServer)) {
+
+        ssize_t w = send(fd,
+                         ((char*)mess) + off,
+                         sizeof(MessServer) - off,
+                         0);
+
+        if (w < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+
+        off += w;
+    }
+
+    return off;
+}
+
+static ssize_t readn_all(int fd, void *buf, size_t len){
+    size_t off = 0;
+
+    while (off < len) {
+
+        ssize_t r = recv(
+            fd,
+            ((char*)buf) + off,
+            len - off,
+            0
+        );
+
+        if (r == 0)
+            return 0;
+
+        if (r < 0) {
+            if (errno == EINTR)
+                continue;
+            return -1;
+        }
+
+        off += r;
+    }
+
+    return off;
+}
+
+int check_game_over() {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+
+    if (now.tv_sec > end_time.tv_sec ||
+       (now.tv_sec == end_time.tv_sec &&
+        now.tv_nsec >= end_time.tv_nsec)) {
+        return 1;
+    }
+
+    return 0;
+}
+
+void addPlayer(Player* p){
+    pthread_mutex_lock(&mtx);
+    for(int i = 0; i < NUM_PLAYERS; i++){
+        if(players[i] == NULL){
+            players[i] = p;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&mtx);
+}
+
+void broadcast_game_over(void) {
+
+    MessServer msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.type = MSG_GAME_OVER;
+
+    pthread_mutex_lock(&mtx);
+
+    for (int i = 0; i < NUM_PLAYERS; i++) {
+        if (player_fds[i] != -1) {
+
+            send(player_fds[i], &msg, sizeof(msg), MSG_NOSIGNAL);
+
+            // opzionale ma consigliato: forza uscita recv
+            shutdown(player_fds[i], SHUT_RDWR);
+        }
     }
 
     pthread_mutex_unlock(&mtx);

@@ -46,6 +46,7 @@ typedef struct player {
     int riga;
     int colonna;
     Colore colorePlayer;
+    int fd;     //per il broadcast
 } Player;
 
 typedef struct mappa {
