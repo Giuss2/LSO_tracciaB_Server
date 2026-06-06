@@ -62,7 +62,7 @@ void *timer_thread(void *arg) {
             
             MessServer msg_periodico;
             memset(&msg_periodico, 0, sizeof(msg_periodico));
-            msg_periodico.type = MSG_UPDATE;
+            msg_periodico.type = MSG_GLOBAL_UPDATE;
             msg_periodico.mappaPlayer = mappaGlobale; // Inviamo lo stato globale
             
             for (int i = 0; i < NUM_PLAYERS; i++) {
@@ -165,6 +165,7 @@ static void *handle_client(void *arg) {
     MessServer messServer;
     messServer.p = *p;
     messServer.mappaPlayer = mappaLocale;
+    messServer.type = MSG_UPDATE;
 
     for (int i = 0; i < NUM_PLAYERS; i++) {
         if (players[i])
