@@ -26,10 +26,6 @@ Player* players[NUM_PLAYERS];
 int player_fds[NUM_PLAYERS];
 
 
-typedef enum {
-    MSG_UPDATE = 0,
-    MSG_GAME_OVER = 1
-} MsgType;
 
 typedef struct messServer{
      Mappa mappaPlayer;
@@ -52,24 +48,43 @@ void broadcast_game_over();
 
 void *timer_thread(void *arg) {
     (void)arg;
+    int secondi_passati = 0;
+    int durata_partita = 60; 
+    int T = 10;               // Invia la mappa globale ogni tot sec
 
-    while (!game_over) {
-        struct timespec now;
-        clock_gettime(CLOCK_MONOTONIC, &now);
+    while (secondi_passati < durata_partita) {
+        sleep(1);
+        secondi_passati++;
 
-        if (now.tv_sec > end_time.tv_sec ||
-           (now.tv_sec == end_time.tv_sec &&
-            now.tv_nsec >= end_time.tv_nsec)) {
-            break;
+        // Ogni T secondi invia la mappa globale a tutti (Richiesta della specifica)
+        if (secondi_passati % T == 0 && !game_over) {
+            pthread_mutex_lock(&mtx);
+            
+            MessServer msg_periodico;
+            memset(&msg_periodico, 0, sizeof(msg_periodico));
+            msg_periodico.type = MSG_UPDATE;
+            msg_periodico.mappaPlayer = mappaGlobale; // Inviamo lo stato globale
+            
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                if (players[i]) msg_periodico.players[i] = *players[i];
+            }
+
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                if (player_fds[i] != -1) {
+                    // Personalizziamo il player corrente per ciascun client
+                    if (players[i]) msg_periodico.p = *players[i];
+                    send(player_fds[i], &msg_periodico, sizeof(msg_periodico), MSG_NOSIGNAL);
+                }
+            }
+            pthread_mutex_unlock(&mtx);
         }
-
-        usleep(100000);
     }
 
+    // Tempo scaduto!
     atomic_store(&game_over, true);
+    printf("Tempo scaduto! Invio GAME OVER a tutti...\n");
     broadcast_game_over();
 
-    printf("GAME OVER\n");
     return NULL;
 }
 
@@ -295,11 +310,8 @@ void rivelaNebbia(Player *p, Mappa* mappa, Mappa* mappaGlobale){
                 mappa->mappa[i][j] = mappaGlobale->mappa[i][j];
                 mappa->mappaPlayer[i][j] = mappaGlobale->mappaPlayer[i][j];
             }
-                
-
         }
     }
-   
 }
 
 
@@ -443,22 +455,20 @@ void addPlayer(Player* p){
 }
 
 void broadcast_game_over(void) {
-
     MessServer msg;
     memset(&msg, 0, sizeof(msg));
     msg.type = MSG_GAME_OVER;
 
     pthread_mutex_lock(&mtx);
-
     for (int i = 0; i < NUM_PLAYERS; i++) {
         if (player_fds[i] != -1) {
-
+            // Invia il flag di game over
             send(player_fds[i], &msg, sizeof(msg), MSG_NOSIGNAL);
-
-            // opzionale ma consigliato: forza uscita recv
-            shutdown(player_fds[i], SHUT_RDWR);
+            // Forza lo sblocco della recv() nel thread handle_client interrompendo il canale
+            shutdown(player_fds[i], SHUT_RDWR); 
+            close(player_fds[i]);
+            player_fds[i] = -1;
         }
     }
-
     pthread_mutex_unlock(&mtx);
 }
