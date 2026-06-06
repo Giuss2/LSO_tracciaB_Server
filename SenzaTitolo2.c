@@ -85,7 +85,7 @@ void *timer_thread(void *arg) {
     printf("Tempo scaduto! Invio GAME OVER a tutti...\n");
     broadcast_game_over();
 
-    return NULL;
+    _exit(0);
 }
 
 static void *handle_client(void *arg) {
@@ -210,6 +210,13 @@ int main(void) {
 
     int s = socket(AF_INET, SOCK_STREAM, 0);
     if (s < 0) { perror("socket"); return 1; }
+
+    int opt = 1;
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEADDR");
+        close(s);
+        return 1;
+    }
 
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));

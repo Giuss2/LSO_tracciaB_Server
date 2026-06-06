@@ -7,6 +7,8 @@ COPY . .
 
 RUN gcc SenzaTitolo2.c -o server -pthread
 
+RUN chmod +x serverImmortale.sh
+
 EXPOSE 5201
 
-CMD ["./server"]
+CMD ["./serverImmortale.sh"]
