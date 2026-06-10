@@ -21,17 +21,23 @@ pthread_mutex_t mtx;
 atomic_bool game_over = false;
 struct timespec end_time;
 
+
+typedef struct statistiche {
+    char id;
+    int celleConquistate;
+} Statistiche;
+
 Mappa mappaGlobale;
 Player* players[NUM_PLAYERS];
+
 int player_fds[NUM_PLAYERS];
-
-
 
 typedef struct messServer{
      Mappa mappaPlayer;
      Player p;
      Player players[NUM_PLAYERS];
      MsgType type;
+     Statistiche statistics[NUM_PLAYERS];
 }MessServer;
 
 typedef struct messClient{
@@ -45,6 +51,7 @@ static ssize_t readn_all(int fd, void *buf, size_t len);
 void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
 void addPlayer(Player* p);
 void broadcast_game_over();
+void calcoloStatistiche(Statistiche* stats, Mappa* mappaGlobale);
 
 void *timer_thread(void *arg) {
     (void)arg;
@@ -63,6 +70,21 @@ void *timer_thread(void *arg) {
             MessServer msg_periodico;
             memset(&msg_periodico, 0, sizeof(msg_periodico));
             msg_periodico.type = MSG_GLOBAL_UPDATE;
+
+            Statistiche statistics[NUM_PLAYERS];
+            memset(statistics, 0, sizeof(statistics));
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                Statistiche stat;
+                stat.id = players[i] ? players[i]->lettera : '\0';
+                stat.celleConquistate = 0; // Inizializza a 0
+                
+                calcoloStatistiche(&stat, &mappaGlobale);
+                statistics[i] = stat;
+            }
+
+            for(int i = 0; i < NUM_PLAYERS; i++){
+                msg_periodico.statistics[i] = statistics[i];
+            }
 
             //nascondi muri
             for (int i = 0; i < N; i++) {
@@ -491,4 +513,21 @@ void broadcast_game_over(void) {
         }
     }
     pthread_mutex_unlock(&mtx);
+}
+
+
+void calcoloStatistiche(Statistiche* stats, Mappa* mappaGlobale) {
+    
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            char cella = mappaGlobale->mappaPlayer[i][j];
+            //NOTA CHE QUI C'ERA UN IF CHE TOGLIE MURI E NEBBIA
+                    if (stats->id == cella) {
+                        stats->celleConquistate++;
+                        
+                    }
+            
+        }
+    }
+
 }
