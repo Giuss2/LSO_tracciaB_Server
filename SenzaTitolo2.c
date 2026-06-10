@@ -148,12 +148,12 @@ static void *handle_client(void *arg) {
         colore_random
     };
 
-    addPlayer(p);
 
     int posizione_riga;
     int posizione_colonna;
 
     pthread_mutex_lock(&mtx);
+    addPlayer(p);
     do {
 
         posizione_riga = rand_r(&seed) % N;
@@ -201,12 +201,15 @@ static void *handle_client(void *arg) {
     messServer.mappaPlayer = mappaLocale;
     messServer.type = MSG_UPDATE;
 
+    pthread_mutex_lock(&mtx);
     for (int i = 0; i < NUM_PLAYERS; i++) {
         if (players[i])
             messServer.players[i] = *players[i];
         else
             messServer.players[i].lettera = '\0';
     }
+    pthread_mutex_unlock(&mtx);
+
 
     if (writen_all(fd, &messServer)<0) {
         perror("send");
@@ -235,7 +238,7 @@ int main(void) {
     Player* p = NULL;
 
     pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutexattr_settype(&attr, NULL);
 
     pthread_mutex_init(&mtx, &attr);
 
@@ -268,7 +271,7 @@ int main(void) {
     pthread_create(&timer, NULL, timer_thread, NULL);
     pthread_detach(timer);
 
-    pthread_mutex_lock(&mtx);
+  
 
 
     printf("Server in ascolto su 0.0.0.0:%d (thread per connessione)\n", PORT);
@@ -279,15 +282,13 @@ int main(void) {
 
     rand_r(&seed);
 
+    pthread_mutex_lock(&mtx);
     for(int i = 0; i < N; i++) {
         for(int j = 0; j < N; j++) {
-
             if((rand_r(&seed) % 100) > 20)
                 mappaGlobale.mappa[i][j] = simboli[0];
             else
                 mappaGlobale.mappa[i][j] = simboli[1];
-
-            //mappaLocale.mappaPlayer[i][j] = '0';
         }
     }
 
@@ -295,20 +296,19 @@ int main(void) {
         players[i] = NULL;
         player_fds[i] = -1;
     }
-
-   
+    pthread_mutex_unlock(&mtx);
 
     for(;;) {
         int c = accept(s, NULL, NULL);
         if (c < 0) { if (errno == EINTR) continue; perror("accept"); continue; }
 
-
-for (int i = 0; i < NUM_PLAYERS; i++) {
-    if (player_fds[i] == -1) {
-        player_fds[i] = c;
-        break;
+    pthread_mutex_lock(&mtx);
+    for (int i = 0; i < NUM_PLAYERS; i++) {
+        if (player_fds[i] == -1) {
+            player_fds[i] = c;
+            break;
+        }
     }
-}
 
 pthread_mutex_unlock(&mtx);
 
@@ -486,14 +486,12 @@ int check_game_over() {
 }
 
 void addPlayer(Player* p){
-    pthread_mutex_lock(&mtx);
     for(int i = 0; i < NUM_PLAYERS; i++){
         if(players[i] == NULL){
             players[i] = p;
             break;
         }
     }
-    pthread_mutex_unlock(&mtx);
 }
 
 void broadcast_game_over(void) {
@@ -501,18 +499,25 @@ void broadcast_game_over(void) {
     memset(&msg, 0, sizeof(msg));
     msg.type = MSG_GAME_OVER;
 
+    int fds_locali[NUM_PLAYERS];
+
     pthread_mutex_lock(&mtx);
     for (int i = 0; i < NUM_PLAYERS; i++) {
+        fds_locali[i] = player_fds[i]; // Copiamo i descrittori nell'array locale
         if (player_fds[i] != -1) {
-            // Invia il flag di game over
             send(player_fds[i], &msg, sizeof(msg), MSG_NOSIGNAL);
-            // Forza lo sblocco della recv() nel thread handle_client interrompendo il canale
-            shutdown(player_fds[i], SHUT_RDWR); 
-            close(player_fds[i]);
-            player_fds[i] = -1;
+            player_fds[i] = -1; // Sanatizziamo subito l'array globale sotto lock
         }
     }
     pthread_mutex_unlock(&mtx);
+
+    // Ora facciamo pulizia sui socket in totale isolamento
+    for (int i = 0; i < NUM_PLAYERS; i++) {
+        if (fds_locali[i] != -1) {
+            shutdown(fds_locali[i], SHUT_RDWR); 
+            close(fds_locali[i]);
+        }
+    }
 }
 
 
