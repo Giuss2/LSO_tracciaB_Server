@@ -63,7 +63,19 @@ void *timer_thread(void *arg) {
             MessServer msg_periodico;
             memset(&msg_periodico, 0, sizeof(msg_periodico));
             msg_periodico.type = MSG_GLOBAL_UPDATE;
-            msg_periodico.mappaPlayer = mappaGlobale; // Inviamo lo stato globale
+
+            //nascondi muri
+            for (int i = 0; i < N; i++) {
+                for (int j = 0; j < N; j++) {
+                    if(mappaGlobale.mappa[i][j] == MURO)
+                        msg_periodico.mappaPlayer.mappa[i][j] = '.';
+                    else{
+                        msg_periodico.mappaPlayer.mappa[i][j] = mappaGlobale.mappa[i][j];
+                    }                    
+                    msg_periodico.mappaPlayer.mappaPlayer[i][j] = mappaGlobale.mappaPlayer[i][j];
+                }
+            }
+
             
             for (int i = 0; i < NUM_PLAYERS; i++) {
                 if (players[i]) msg_periodico.players[i] = *players[i];
