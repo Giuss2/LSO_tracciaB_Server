@@ -349,16 +349,13 @@ pthread_mutex_unlock(&mtx);
 void rivelaNebbia(Player *p, Mappa* mappa, Mappa* mappaGlobale){
 
     for(int i = p->riga - 1; i <= p->riga + 1; i++) {
-
         for(int j = p->colonna - 1; j <= p->colonna + 1; j++) {
 
             if(j < 0 || i < 0 || j > N - 1 || i > N - 1)
                 continue;
 
-            if(mappa->mappa[i][j] == ' '){
-                mappa->mappa[i][j] = mappaGlobale->mappa[i][j];
-                mappa->mappaPlayer[i][j] = mappaGlobale->mappaPlayer[i][j];
-            }
+            mappa->mappa[i][j] = mappaGlobale->mappa[i][j];
+            mappa->mappaPlayer[i][j] = mappaGlobale->mappaPlayer[i][j];
         }
     }
 }
