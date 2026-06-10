@@ -58,6 +58,7 @@ void *timer_thread(void *arg) {
     int secondi_passati = 0;
     int durata_partita = 60; 
     int T = 10;               // Invia la mappa globale ogni tot sec
+    Statistiche vincitore = { .id = '\0', .celleConquistate = 0 };
 
     while (secondi_passati < durata_partita) {
         sleep(1);
@@ -84,6 +85,12 @@ void *timer_thread(void *arg) {
 
             for(int i = 0; i < NUM_PLAYERS; i++){
                 msg_periodico.statistics[i] = statistics[i];
+                if (!players[i]) {statistics[i].id = '\0'; statistics[i].celleConquistate = 0; continue;}
+
+                if (msg_periodico.statistics[i].celleConquistate > vincitore.celleConquistate) {
+                        vincitore.id = msg_periodico.statistics[i].id;
+                        vincitore.celleConquistate = msg_periodico.statistics[i].celleConquistate;
+                    }
             }
 
             //nascondi muri
@@ -116,8 +123,8 @@ void *timer_thread(void *arg) {
 
     // Tempo scaduto!
     atomic_store(&game_over, true);
-    printf("Tempo scaduto! Invio GAME OVER a tutti...\n");
-    broadcast_game_over();
+    printf("Tempo scaduto! Invio GAME OVER a tutti E VINCITORE %c...\n", vincitore.id);
+    broadcast_game_over(&vincitore);
 
     _exit(0);
 }
@@ -238,7 +245,7 @@ int main(void) {
     Player* p = NULL;
 
     pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, NULL);
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 
     pthread_mutex_init(&mtx, &attr);
 
@@ -494,24 +501,25 @@ void addPlayer(Player* p){
     }
 }
 
-void broadcast_game_over(void) {
+void broadcast_game_over(Statistiche* vincitore) {
     MessServer msg;
     memset(&msg, 0, sizeof(msg));
     msg.type = MSG_GAME_OVER;
 
     int fds_locali[NUM_PLAYERS];
+    msg.p.lettera = vincitore->id;
 
     pthread_mutex_lock(&mtx);
     for (int i = 0; i < NUM_PLAYERS; i++) {
         fds_locali[i] = player_fds[i]; // Copiamo i descrittori nell'array locale
         if (player_fds[i] != -1) {
             send(player_fds[i], &msg, sizeof(msg), MSG_NOSIGNAL);
-            player_fds[i] = -1; // Sanatizziamo subito l'array globale sotto lock
+            player_fds[i] = -1; // Sanatizziamo subito l'array globale 
         }
     }
     pthread_mutex_unlock(&mtx);
 
-    // Ora facciamo pulizia sui socket in totale isolamento
+    // pulizia sui socket
     for (int i = 0; i < NUM_PLAYERS; i++) {
         if (fds_locali[i] != -1) {
             shutdown(fds_locali[i], SHUT_RDWR); 
@@ -522,16 +530,13 @@ void broadcast_game_over(void) {
 
 
 void calcoloStatistiche(Statistiche* stats, Mappa* mappaGlobale) {
-    
+
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
             char cella = mappaGlobale->mappaPlayer[i][j];
-            //NOTA CHE QUI C'ERA UN IF CHE TOGLIE MURI E NEBBIA
-                    if (stats->id == cella) {
-                        stats->celleConquistate++;
-                        
-                    }
-            
+                if (stats->id == cella) {
+                    stats->celleConquistate++;            
+                }
         }
     }
 
