@@ -38,7 +38,7 @@ ssize_t readn_all(int fd, void *buf, size_t len) {
     return off;
 }
 
-
+/*
 int check_game_over() {
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
@@ -51,7 +51,7 @@ int check_game_over() {
 
     return 0;
 }
-
+*/
 
 void broadcast_game_over(Statistiche* vincitore) {
     MessServer msg;
@@ -59,7 +59,8 @@ void broadcast_game_over(Statistiche* vincitore) {
     msg.type = MSG_GAME_OVER;
 
     int fds_locali[NUM_PLAYERS];
-    msg.p.lettera = vincitore->id;
+    
+    strcpy(msg.p.username, vincitore->username);
 
     pthread_mutex_lock(&mtx);
     for (int i = 0; i < NUM_PLAYERS; i++) {

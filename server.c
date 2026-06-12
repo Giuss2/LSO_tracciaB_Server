@@ -17,7 +17,7 @@ void *timer_thread(void *arg) {
     int secondi_passati = 0;
     int durata_partita = 60; 
     int T = 10;               // Invia la mappa globale ogni tot sec
-    Statistiche vincitore = { .id = '\0', .celleConquistate = 0 };
+    Statistiche vincitore = { .id = '\0', .username = {0}, .celleConquistate = 0 };
 
     while (secondi_passati < durata_partita) {
         sleep(1);
@@ -35,20 +35,37 @@ void *timer_thread(void *arg) {
             memset(statistics, 0, sizeof(statistics));
             for (int i = 0; i < NUM_PLAYERS; i++) {
                 Statistiche stat;
-                stat.id = players[i] ? players[i]->lettera : '\0';
-                stat.celleConquistate = 0; // Inizializza a 0
-                
-                calcoloStatistiche(&stat, &mappaGlobale);
+                memset(&stat, 0, sizeof(Statistiche));
+
+                if (players[i] != NULL) {
+                    stat.id = players[i]->lettera;
+                    stat.celleConquistate = 0;
+                    strcpy(stat.username, players[i]->username);
+                    calcoloStatistiche(&stat, &mappaGlobale);
+                } else {
+                    stat.id = '\0';
+                    stat.celleConquistate = 0;
+                    strcpy(stat.username, "");
+                    }
+
                 statistics[i] = stat;
             }
 
             for(int i = 0; i < NUM_PLAYERS; i++){
                 msg_periodico.statistics[i] = statistics[i];
-                if (!players[i]) {statistics[i].id = '\0'; statistics[i].celleConquistate = 0; continue;}
+                if (!players[i]) {
+                    statistics[i].id = '\0'; 
+                    statistics[i].celleConquistate = 0; 
+                    strcpy(statistics[i].username, "");
+                    continue;
+                }
+               
+                strcpy(statistics[i].username, players[i]->username);
 
                 if (msg_periodico.statistics[i].celleConquistate > vincitore.celleConquistate) {
                         vincitore.id = msg_periodico.statistics[i].id;
                         vincitore.celleConquistate = msg_periodico.statistics[i].celleConquistate;
+                        strcpy(vincitore.username, msg_periodico.statistics[i].username);
                     }
             }
 
@@ -73,17 +90,18 @@ void *timer_thread(void *arg) {
                 if (player_fds[i] != -1) {
                     // Personalizziamo il player corrente per ciascun client
                     if (players[i]) msg_periodico.p = *players[i];
-                    send(player_fds[i], &msg_periodico, sizeof(msg_periodico), MSG_NOSIGNAL);
+                    writen_all(player_fds[i], &msg_periodico);
                 }
             }
             pthread_mutex_unlock(&mtx);
         }
     }
+    
 
     // Tempo scaduto!
     atomic_store(&game_over, true);
-    printf("Tempo scaduto! Invio GAME OVER a tutti E VINCITORE %c...\n", vincitore.id);
     broadcast_game_over(&vincitore);
+    printf("Tempo scaduto! Invio GAME OVER a tutti E VINCITORE %s...\n", vincitore.username);
 
     _exit(0);
 }
@@ -107,13 +125,17 @@ static void *handle_client(void *arg) {
     Colore colore_random = (Colore)((rand_r(&seed) % 12) + 4);
     
     Player *p = malloc(sizeof(Player));
+    memset(p, 0, sizeof(Player));
     *p = (Player) {
         lettera_random,
         5,
         7,
-        colore_random
+        colore_random,
     };
+    p->username[0] = '\0';
+    p->password[0] = '\0';
 
+    
 
     int posizione_riga;
     int posizione_colonna;
@@ -153,6 +175,16 @@ static void *handle_client(void *arg) {
         perror("recv");
         break;
     }
+
+    if(messClient.type == MSG_LOGIN) {
+        messClient.username[31] = '\0';
+        messClient.password[31] = '\0';
+
+        memcpy(p->username, messClient.username, 32);
+        memcpy(p->password, messClient.password, 32);
+    }
+
+    
 
     pthread_mutex_lock(&mtx);
     if (messClient.movimento) {
