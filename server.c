@@ -97,11 +97,23 @@ void *timer_thread(void *arg) {
         }
     }
     
+    if()
 
     // Tempo scaduto!
     atomic_store(&game_over, true);
-    broadcast_game_over(&vincitore);
-    printf("Tempo scaduto! Invio GAME OVER a tutti E VINCITORE %s...\n", vincitore.username);
+
+    pthread_mutex_lock(&mtx);
+    // Verifichiamo se c'è effettivamente un vincitore con delle celle conquistate
+    if (vincitore.id == '\0' || vincitore.username[0] == '\0') {
+        printf("Tempo scaduto! Partita terminata: nessuno collegato o nessun giocatore attivo.\n");
+        
+        strcpy(vincitore.username, "Nessuno collegato");
+        broadcast_game_over(&vincitore);
+    } else {
+        printf("Tempo scaduto! Invio GAME OVER a tutti. E VINCITORE: %s...\n", vincitore.username);
+        broadcast_game_over(&vincitore);
+    }
+    pthread_mutex_unlock(&mtx);
 
     _exit(0);
 }
