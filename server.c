@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <time.h>
-#include "mappa.h" 
+#include "game.h" 
 
 void addPlayer(Player* p);
 
