@@ -97,7 +97,7 @@ void *timer_thread(void *arg) {
         }
     }
     
-    if()
+    
 
     // Tempo scaduto!
     atomic_store(&game_over, true);
