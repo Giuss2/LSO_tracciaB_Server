@@ -23,7 +23,8 @@ typedef enum {
     MSG_UPDATE = 0,
     MSG_GAME_OVER = 1,
     MSG_GLOBAL_UPDATE = 2,
-    MSG_LOGIN = 3
+    MSG_SUBSCRIBE = 3,
+    MSG_LOGIN = 4
 } MsgType;
 
 typedef struct player {
@@ -68,6 +69,7 @@ typedef struct messClient {
 #ifdef MAIN_PROGRAM
     // --- ALLOCAZIONE FISICA DELLE VARIABILI ---
     pthread_mutex_t mtx;
+    pthread_mutex_t file_mtx;
     atomic_bool game_over = false;
     struct timespec end_time;
     Mappa mappaGlobale;
@@ -89,6 +91,7 @@ typedef struct messClient {
 #else
     // --- RIFERIMENTO EXTERN ---
     extern pthread_mutex_t mtx;
+    extern pthread_mutex_t file_mtx;
     extern atomic_bool game_over;
     extern struct timespec end_time;
     extern Mappa mappaGlobale;
@@ -106,9 +109,11 @@ bool verificaMossa(int riga, int colonna, char mappa[N][N]);
 int check_game_over();
 ssize_t writen_all(int fd, MessServer *mess);
 ssize_t readn_all(int fd, void *buf, size_t len);
-void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
+bool invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
 void addPlayer(Player* p);
 void broadcast_game_over(Statistiche* vincitore);
 void calcoloStatistiche(Statistiche* stats, Mappa* mappaGlobale);
+bool registraUtente(char username[32], char password[32]);
+bool verificaCredenziali(char username[32], char password[32]);
 
 #endif

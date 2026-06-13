@@ -96,25 +96,18 @@ void *timer_thread(void *arg) {
             pthread_mutex_unlock(&mtx);
         }
     }
-    
-    
+        
 
     // Tempo scaduto!
     atomic_store(&game_over, true);
 
     pthread_mutex_lock(&mtx);
-    // Verifichiamo se c'è effettivamente un vincitore con delle celle conquistate
-    if (vincitore.id == '\0' || vincitore.username[0] == '\0') {
-        printf("Tempo scaduto! Partita terminata: nessuno collegato o nessun giocatore attivo.\n");
-        
+    if (vincitore.id == '\0' || vincitore.username[0] == '\0')
         strcpy(vincitore.username, "Nessuno collegato");
-        broadcast_game_over(&vincitore);
-    } else {
-        printf("Tempo scaduto! Invio GAME OVER a tutti. E VINCITORE: %s...\n", vincitore.username);
-        broadcast_game_over(&vincitore);
-    }
     pthread_mutex_unlock(&mtx);
 
+
+    broadcast_game_over(&vincitore);
     _exit(0);
 }
 
@@ -188,23 +181,68 @@ static void *handle_client(void *arg) {
         break;
     }
 
-    if(messClient.type == MSG_LOGIN) {
+    bool uscita = false;
+
+    if(messClient.type == MSG_SUBSCRIBE) {
         messClient.username[31] = '\0';
         messClient.password[31] = '\0';
 
+        if(!registraUtente(messClient.username, messClient.password)){
+            MessServer messServer;
+            memset(&messServer, 0, sizeof(messServer));
+
+            messServer.type = MSG_SUBSCRIBE;
+            strcpy(messServer.p.username, "FAIL");
+            
+            if(writen_all(fd, &messServer)<0){ 
+                perror("send"); break; 
+            }
+
+            uscita = true;
+            break;
+        }
         memcpy(p->username, messClient.username, 32);
         memcpy(p->password, messClient.password, 32);
+        
+    }
+    
+
+    if(messClient.type == MSG_LOGIN){
+        messClient.username[31] = '\0';
+        messClient.password[31] = '\0';
+
+        if(!verificaCredenziali(messClient.username, messClient.password)){
+            MessServer messServer;
+            memset(&messServer, 0, sizeof(messServer));
+
+            messServer.type = MSG_LOGIN;
+            strcpy(messServer.p.username, "FAIL");
+            
+            if(writen_all(fd, &messServer)<0){ 
+                perror("send"); break; 
+            }
+            
+            uscita = true;
+            break; 
+        }
+
+        memcpy(p->username, messClient.username, 32);
+        memcpy(p->password, messClient.password, 32);
+       
     }
 
     
 
     pthread_mutex_lock(&mtx);
     if (messClient.movimento) {
-        invioMappaLocale(p, &mappaLocale, &mappaGlobale, messClient.direzione);
+        uscita = invioMappaLocale(p, &mappaLocale, &mappaGlobale, messClient.direzione);
     } else {
         rivelaNebbia(p, &mappaLocale, &mappaGlobale);    
     }
     pthread_mutex_unlock(&mtx);
+
+    if(uscita)
+        break;  //uscita da while
 
     MessServer messServer;
     messServer.p = *p;
@@ -239,6 +277,7 @@ for (int i = 0; i < NUM_PLAYERS; i++) {
 
 pthread_mutex_unlock(&mtx);
     close(fd);
+    free(p);
     return NULL;
 }
 

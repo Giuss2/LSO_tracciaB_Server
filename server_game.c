@@ -31,7 +31,7 @@ bool verificaMossa(int riga, int colonna, char mappa[N][N]) {
 }
 
 
-void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char direzione) {
+bool invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char direzione) {
 
     int riga_nuova = p->riga;
     int colonna_nuova = p->colonna;
@@ -58,6 +58,13 @@ void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char d
         case 's':
             riga_nuova++; 
             break;
+        // --- GESTIONE USCITA GIOCO ---
+        case 'U':
+        case 'u':
+            mappaGlobale->mappa[p->riga][p->colonna] = cella_libera;
+            mappaGlobale->mappaPlayer[p->riga][p->colonna] = ' '; 
+            return true;
+
     }
 
     rivelaNebbia(p, mappaLocale, mappaGlobale);
@@ -77,6 +84,8 @@ void invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char d
 
         rivelaNebbia(p, mappaLocale, mappaGlobale);
     }
+
+    return false;
 }
 
 void calcoloStatistiche(Statistiche* stats, Mappa* mappaGlobale) {

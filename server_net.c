@@ -2,7 +2,8 @@
 #include <sys/socket.h>
 #include <errno.h>
 #include <string.h>
-
+#include <fcntl.h>
+#include <sys/stat.h>
 
 ssize_t writen_all(int fd, MessServer *mess) {
     size_t off = 0;
@@ -38,20 +39,6 @@ ssize_t readn_all(int fd, void *buf, size_t len) {
     return off;
 }
 
-/*
-int check_game_over() {
-    struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-
-    if (now.tv_sec > end_time.tv_sec ||
-       (now.tv_sec == end_time.tv_sec &&
-        now.tv_nsec >= end_time.tv_nsec)) {
-        return 1;
-    }
-
-    return 0;
-}
-*/
 
 void broadcast_game_over(Statistiche* vincitore) {
     MessServer msg;
@@ -81,29 +68,122 @@ void broadcast_game_over(Statistiche* vincitore) {
     }
 }
 
-/*
-void build_global_update_message(MessServer *msg, Statistiche *vincitore) {
-    memset(msg, 0, sizeof(MessServer));
-    msg->type = MSG_GLOBAL_UPDATE;
+bool registraUtente(char username[32], char password[32]){
 
-    for (int i = 0; i < NUM_PLAYERS; i++) {
-        if (players[i]) {
-            msg->statistics[i].id = players[i]->lettera;
-            calcoloStatistiche(&msg->statistics[i], &mappaGlobale);
-            
-            if (msg->statistics[i].celleConquistate > vincitore->celleConquistate) {
-                vincitore->id = msg->statistics[i].id;
-                vincitore->celleConquistate = msg->statistics[i].celleConquistate;
+    pthread_mutex_lock(&file_mtx);
+    int fd = open("credenziali_utenti.txt", O_RDWR | O_CREAT | O_APPEND, S_IRWXU | S_IRGRP | S_IROTH);
+    if (fd < 0) {
+        perror("Errore open credenziali_utenti.txt");
+        pthread_mutex_unlock(&file_mtx);
+        return false;
+    }
+
+    // due utenti non possono avere lo stesso username
+    char riga[100];
+    int idx = 0;
+    char c;
+    bool trovato = false;
+
+    while (read(fd, &c, 1) > 0) {
+        if (c != '\n' && idx < (int)sizeof(riga) - 1) {
+            riga[idx++] = c;
+        } else {
+            riga[idx] = '\0'; // Fine riga corrente
+            idx = 0;          // Reset per la prossima riga
+
+            char *token = strtok(riga, ",");
+            if (token != NULL && strcmp(token, username) == 0) {
+                trovato = true;
+                break; // Username duplicato
             }
-            msg->players[i] = *players[i];
         }
     }
 
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            msg->mappaPlayer.mappa[i][j] = (mappaGlobale.mappa[i][j] == MURO) ? '.' : mappaGlobale.mappa[i][j];
-            msg->mappaPlayer.mappaPlayer[i][j] = mappaGlobale.mappaPlayer[i][j];
+    if (trovato) {
+        printf("Registrazione fallita: lo username '%s' esiste già.\n", username);
+        close(fd);
+        pthread_mutex_unlock(&file_mtx);
+        return false;
+    }
+
+    lseek(fd, 0, SEEK_END);
+    size_t len_user = strlen(username);
+    size_t len_pass = strlen(password);
+    
+    size_t totale_bytes = len_user + 1 + len_pass + 1; 
+    
+    char buffer[67]; 
+    char *ptr_buf = buffer;
+
+    memcpy(ptr_buf, username, len_user);
+    ptr_buf += len_user; 
+    *ptr_buf = ',';
+    ptr_buf += 1;
+    memcpy(ptr_buf, password, len_pass);
+    ptr_buf += len_pass;
+    *ptr_buf = '\n';
+    
+    char *ptr_write = buffer;
+    size_t rimasti = totale_bytes;
+    ssize_t n_written;
+
+    while (rimasti > 0) {
+        n_written = write(fd, ptr_write, rimasti);
+        if (n_written <= 0) {
+            if (n_written < 0 && errno == EINTR) continue; 
+            perror("Errore write utenti.txt");
+            break;
+        }
+        ptr_write += n_written;
+        rimasti -= n_written;
+    }
+
+    close(fd);
+    pthread_mutex_unlock(&file_mtx);    
+    return true;
+
+}
+
+bool verificaCredenziali(char username[32], char password[32]){
+
+    pthread_mutex_lock(&file_mtx);
+    int fd = open("credenziali_utenti.txt", O_RDONLY | O_CREAT, S_IRUSR | S_IRGRP | S_IROTH);
+    if (fd < 0) {
+        perror("Errore open credenziali_utenti.txt");
+        pthread_mutex_unlock(&file_mtx);
+        return false;
+    }
+
+    char riga[100];
+    int idx = 0;
+    char c;
+    bool trovato = false;
+
+    while (read(fd, &c, 1) > 0) {
+        if (c != '\n' && idx < (int)sizeof(riga) - 1) {
+            riga[idx++] = c;
+        } else {
+            riga[idx] = '\0'; // Fine riga corrente
+            idx = 0;          // Reset per la prossima riga
+
+            char *token = strtok(riga, ",");
+            if (token != NULL && strcmp(token, username) == 0) {
+                trovato = true;
+                break;
+            }
         }
     }
+
+    if (!trovato) {
+        printf("Login fallito: lo username '%s' non esiste.\n", username);
+        close(fd);
+        pthread_mutex_unlock(&file_mtx);
+        return false;
+    }
+
+    close(fd);
+    pthread_mutex_unlock(&file_mtx);
+
+    return true;
+
 }
-    */
