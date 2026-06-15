@@ -16,7 +16,7 @@ void *timer_thread(void *arg) {
     (void)arg;
     int secondi_passati = 0;
     int durata_partita = 60; 
-    int T = 10;               // Invia la mappa globale ogni tot sec
+    int T = 30;               // Invia la mappa globale ogni tot sec
     Statistiche vincitore = { .id = '\0', .username = {0}, .celleConquistate = 0 };
 
     while (secondi_passati < durata_partita) {
@@ -116,10 +116,104 @@ static void *handle_client(void *arg) {
     free(arg);
     char buf[N*N];
     Mappa mappaLocale;
+    Player *p = malloc(sizeof(Player));
+    memset(p, 0, sizeof(Player));
+    bool autenticato= false;
+    bool inizializzato = false;
 
     
+    MessClient messClient;
+    while (!game_over) {
+          if (atomic_load(&game_over))
+        break;
 
-    unsigned int seed = (unsigned int)time(NULL) ^ (unsigned long)pthread_self();
+    ssize_t n = readn_all(fd, &messClient, sizeof(messClient));
+    if (n == 0)
+        break;
+
+    if (n < 0) {
+        perror("recv");
+        break;
+    }
+printf("type=%d movimento=%d user='%s'\n",
+       messClient.type,
+       messClient.movimento,
+       messClient.username);
+fflush(stdout);
+
+
+    bool uscita = false;
+
+    if(messClient.type == MSG_SUBSCRIBE && !autenticato) {
+        messClient.username[31] = '\0';
+        messClient.password[31] = '\0';
+
+        if(!registraUtente(messClient.username, messClient.password)){
+            MessServer messServer;
+            memset(&messServer, 0, sizeof(messServer));
+
+            messServer.type = MSG_SUBSCRIBE;
+            strcpy(messServer.p.username, "FAIL");
+            
+            if(writen_all(fd, &messServer)<0){ 
+                perror("send"); break; 
+            }
+
+            uscita = true;
+            continue;
+        }
+
+        memcpy(p->username, messClient.username, 32);
+        memcpy(p->password, messClient.password, 32);
+        autenticato = true;
+        
+        MessServer messServer;
+        memset(&messServer, 0, sizeof(messServer));
+        messServer.type = MSG_SUBSCRIBE;
+        if(writen_all(fd, &messServer)<0){ 
+                perror("send"); break; 
+            }
+        
+    }
+    
+
+    if(messClient.type == MSG_LOGIN && !autenticato){
+        messClient.username[31] = '\0';
+        messClient.password[31] = '\0';
+
+        if(!verificaCredenziali(messClient.username, messClient.password)){
+            MessServer messServer;
+            memset(&messServer, 0, sizeof(messServer));
+
+            messServer.type = MSG_LOGIN;
+            strcpy(messServer.p.username, "FAIL");
+            
+            if(writen_all(fd, &messServer)<0){ 
+                perror("send"); break; 
+            }
+
+            uscita = true;
+            continue; 
+        }
+        memcpy(p->username, messClient.username, 32);
+        memcpy(p->password, messClient.password, 32);
+        autenticato = true;
+
+        MessServer messServer;
+        memset(&messServer, 0, sizeof(messServer));
+        messServer.type = MSG_LOGIN;
+        if(writen_all(fd, &messServer)<0){ 
+                perror("send"); break; 
+            }
+        
+       
+    }
+
+    if(!autenticato)
+        continue;
+
+    if(!inizializzato){
+unsigned int seed = (unsigned int)time(NULL) ^ (unsigned long)pthread_self();
 
     // Inizializza tutta la mappa locale con caratteri spazio ' '
     memset(mappaLocale.mappa, ' ', sizeof(mappaLocale.mappa));
@@ -129,18 +223,13 @@ static void *handle_client(void *arg) {
     char lettera_random = simboli[rand_r(&seed) % num_simboli];
     Colore colore_random = (Colore)((rand_r(&seed) % 12) + 4);
     
-    Player *p = malloc(sizeof(Player));
-    memset(p, 0, sizeof(Player));
+    
     *p = (Player) {
         lettera_random,
         5,
         7,
         colore_random,
     };
-    p->username[0] = '\0';
-    p->password[0] = '\0';
-
-    
 
     int posizione_riga;
     int posizione_colonna;
@@ -167,71 +256,10 @@ static void *handle_client(void *arg) {
 
     pthread_mutex_unlock(&mtx);
 
-    MessClient messClient;
-    while (!game_over) {
-          if (atomic_load(&game_over))
-        break;
-
-    ssize_t n = readn_all(fd, &messClient, sizeof(messClient));
-    if (n == 0)
-        break;
-
-    if (n < 0) {
-        perror("recv");
-        break;
-    }
-
-    bool uscita = false;
-
-    if(messClient.type == MSG_SUBSCRIBE) {
-        messClient.username[31] = '\0';
-        messClient.password[31] = '\0';
-
-        if(!registraUtente(messClient.username, messClient.password)){
-            MessServer messServer;
-            memset(&messServer, 0, sizeof(messServer));
-
-            messServer.type = MSG_SUBSCRIBE;
-            strcpy(messServer.p.username, "FAIL");
-            
-            if(writen_all(fd, &messServer)<0){ 
-                perror("send"); break; 
-            }
-
-            uscita = true;
-            break;
-        }
-        memcpy(p->username, messClient.username, 32);
-        memcpy(p->password, messClient.password, 32);
-        
+    inizializzato = true;
     }
     
 
-    if(messClient.type == MSG_LOGIN){
-        messClient.username[31] = '\0';
-        messClient.password[31] = '\0';
-
-        if(!verificaCredenziali(messClient.username, messClient.password)){
-            MessServer messServer;
-            memset(&messServer, 0, sizeof(messServer));
-
-            messServer.type = MSG_LOGIN;
-            strcpy(messServer.p.username, "FAIL");
-            
-            if(writen_all(fd, &messServer)<0){ 
-                perror("send"); break; 
-            }
-            
-            uscita = true;
-            break; 
-        }
-
-        memcpy(p->username, messClient.username, 32);
-        memcpy(p->password, messClient.password, 32);
-       
-    }
-
-    
 
     pthread_mutex_lock(&mtx);
     if (messClient.movimento) {

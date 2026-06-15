@@ -99,6 +99,16 @@ bool registraUtente(char username[32], char password[32]){
         }
     }
 
+    if (idx > 0) {
+        riga[idx] = '\0';
+
+        char *token = strtok(riga, ",");
+
+        if (token && strcmp(token, username) == 0 ) {
+            trovato = true;
+        }
+    }
+
     if (trovato) {
         printf("Registrazione fallita: lo username '%s' esiste già.\n", username);
         close(fd);
@@ -138,6 +148,9 @@ bool registraUtente(char username[32], char password[32]){
         rimasti -= n_written;
     }
 
+    
+    
+
     close(fd);
     pthread_mutex_unlock(&file_mtx);    
     return true;
@@ -147,7 +160,7 @@ bool registraUtente(char username[32], char password[32]){
 bool verificaCredenziali(char username[32], char password[32]){
 
     pthread_mutex_lock(&file_mtx);
-    int fd = open("credenziali_utenti.txt", O_RDONLY | O_CREAT, S_IRUSR | S_IRGRP | S_IROTH);
+    int fd = open("credenziali_utenti.txt", O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
     if (fd < 0) {
         perror("Errore open credenziali_utenti.txt");
         pthread_mutex_unlock(&file_mtx);
@@ -166,20 +179,35 @@ bool verificaCredenziali(char username[32], char password[32]){
             riga[idx] = '\0'; // Fine riga corrente
             idx = 0;          // Reset per la prossima riga
 
-            char *token = strtok(riga, ",");
-            if (token != NULL && strcmp(token, username) == 0) {
+            char *token_usr = strtok(riga, ",");
+            char *token_psw = strtok(NULL, ",\n");
+            if ((token_usr != NULL && strcmp(token_usr, username) == 0) && (token_psw != NULL && strcmp(token_psw, password) == 0)) {
                 trovato = true;
                 break;
             }
         }
     }
 
+    if (idx > 0) {
+        riga[idx] = '\0';
+
+        char *token_usr = strtok(riga, ",");
+        char *token_psw = strtok(NULL, ",\n");
+
+        if (token_usr && token_psw &&
+            strcmp(token_usr, username) == 0 &&
+            strcmp(token_psw, password) == 0) {
+            trovato = true;
+        }
+    }
+
     if (!trovato) {
-        printf("Login fallito: lo username '%s' non esiste.\n", username);
+        printf("Login fallito: credenziali errate");  //DA CANCELLARE
         close(fd);
         pthread_mutex_unlock(&file_mtx);
         return false;
     }
+       
 
     close(fd);
     pthread_mutex_unlock(&file_mtx);
