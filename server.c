@@ -15,8 +15,8 @@ void addPlayer(Player* p);
 void *timer_thread(void *arg) {
     (void)arg;
     int secondi_passati = 0;
-    int durata_partita = 60; 
-    int T = 30;               // Invia la mappa globale ogni tot sec
+    int durata_partita = 140; 
+    int T = 45;               // Invia la mappa globale ogni tot sec
     Statistiche vincitore = { .id = '\0', .username = {0}, .celleConquistate = 0 };
 
     while (secondi_passati < durata_partita) {
