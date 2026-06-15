@@ -124,186 +124,176 @@ static void *handle_client(void *arg) {
     
     MessClient messClient;
     while (!game_over) {
-          if (atomic_load(&game_over))
-        break;
+        if (atomic_load(&game_over))
+            break;
 
-    ssize_t n = readn_all(fd, &messClient, sizeof(messClient));
-    if (n == 0)
-        break;
+        ssize_t n = readn_all(fd, &messClient, sizeof(messClient));
+        if (n == 0)
+            break;
 
-    if (n < 0) {
-        perror("recv");
-        break;
-    }
-printf("type=%d movimento=%d user='%s'\n",
-       messClient.type,
-       messClient.movimento,
-       messClient.username);
-fflush(stdout);
+        if (n < 0) {
+            perror("recv");
+            break;
+        }
 
 
-    bool uscita = false;
 
-    if(messClient.type == MSG_SUBSCRIBE && !autenticato) {
-        messClient.username[31] = '\0';
-        messClient.password[31] = '\0';
+        bool uscita = false;
 
-        if(!registraUtente(messClient.username, messClient.password)){
+        if(messClient.type == MSG_SUBSCRIBE && !autenticato) {
+            messClient.username[31] = '\0';
+            messClient.password[31] = '\0';
+
+            if(!registraUtente(messClient.username, messClient.password)){
+                MessServer messServer;
+                memset(&messServer, 0, sizeof(messServer));
+
+                messServer.type = MSG_SUBSCRIBE;
+                strcpy(messServer.p.username, "FAIL");
+            
+                if(writen_all(fd, &messServer)<0){ 
+                    perror("send"); break; 
+                }
+
+                uscita = true;
+                continue;
+            }
+
+            memcpy(p->username, messClient.username, 32);
+            memcpy(p->password, messClient.password, 32);
+            autenticato = true;
+        
             MessServer messServer;
             memset(&messServer, 0, sizeof(messServer));
-
             messServer.type = MSG_SUBSCRIBE;
-            strcpy(messServer.p.username, "FAIL");
-            
             if(writen_all(fd, &messServer)<0){ 
                 perror("send"); break; 
             }
-
-            uscita = true;
-            continue;
+        
         }
-
-        memcpy(p->username, messClient.username, 32);
-        memcpy(p->password, messClient.password, 32);
-        autenticato = true;
-        
-        MessServer messServer;
-        memset(&messServer, 0, sizeof(messServer));
-        messServer.type = MSG_SUBSCRIBE;
-        if(writen_all(fd, &messServer)<0){ 
-                perror("send"); break; 
-            }
-        
-    }
     
 
-    if(messClient.type == MSG_LOGIN && !autenticato){
-        messClient.username[31] = '\0';
-        messClient.password[31] = '\0';
+        if(messClient.type == MSG_LOGIN && !autenticato){
+            messClient.username[31] = '\0';
+            messClient.password[31] = '\0';
 
-        if(!verificaCredenziali(messClient.username, messClient.password)){
+            if(!verificaCredenziali(messClient.username, messClient.password)){
+                MessServer messServer;
+                memset(&messServer, 0, sizeof(messServer));
+
+                messServer.type = MSG_LOGIN;
+                strcpy(messServer.p.username, "FAIL");
+            
+                if(writen_all(fd, &messServer)<0){ 
+                    perror("send"); break; 
+                }
+
+                uscita = true;
+                continue; 
+            }
+            memcpy(p->username, messClient.username, 32);
+            memcpy(p->password, messClient.password, 32);
+            autenticato = true;
+
             MessServer messServer;
             memset(&messServer, 0, sizeof(messServer));
-
             messServer.type = MSG_LOGIN;
-            strcpy(messServer.p.username, "FAIL");
-            
             if(writen_all(fd, &messServer)<0){ 
                 perror("send"); break; 
             }
-
-            uscita = true;
-            continue; 
+        
         }
-        memcpy(p->username, messClient.username, 32);
-        memcpy(p->password, messClient.password, 32);
-        autenticato = true;
+
+        if(!autenticato)
+            continue;
+
+        if(!inizializzato){
+            unsigned int seed = (unsigned int)time(NULL) ^ (unsigned long)pthread_self();
+
+            // Inizializza tutta la mappa locale con caratteri spazio ' '
+            memset(mappaLocale.mappa, ' ', sizeof(mappaLocale.mappa));
+            memset(mappaLocale.mappaPlayer, ' ', sizeof(mappaLocale.mappaPlayer));
+
+            int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
+            char lettera_random = simboli[rand_r(&seed) % num_simboli];
+            Colore colore_random = (Colore)((rand_r(&seed) % 12) + 4);
+    
+    
+            *p = (Player) {lettera_random, 5, 7, colore_random, };
+
+            int posizione_riga;
+            int posizione_colonna;
+
+            pthread_mutex_lock(&mtx);
+            addPlayer(p);
+            do {
+
+                posizione_riga = rand_r(&seed) % N;
+                posizione_colonna = rand_r(&seed) % N;
+
+                if(mappaGlobale.mappa[posizione_riga][posizione_colonna] == cella_libera) {
+                    p->colonna = posizione_colonna;
+                    p->riga = posizione_riga;
+                }
+
+            } while(mappaGlobale.mappa[posizione_riga][posizione_colonna] != cella_libera);
+
+            mappaGlobale.mappa[p->riga][p->colonna] = p->lettera;
+            mappaLocale.mappa[p->riga][p->colonna] = p->lettera;
+
+            mappaGlobale.mappaPlayer[p->riga][p->colonna] = p->lettera;
+            mappaLocale.mappaPlayer[p->riga][p->colonna] = p->lettera;
+
+            pthread_mutex_unlock(&mtx);
+
+            inizializzato = true;
+        }
+    
+
+
+        pthread_mutex_lock(&mtx);
+        if (messClient.movimento) {
+            uscita = invioMappaLocale(p, &mappaLocale, &mappaGlobale, messClient.direzione);
+        } else {
+            rivelaNebbia(p, &mappaLocale, &mappaGlobale);    
+        }
+        pthread_mutex_unlock(&mtx);
+
+        if(uscita)
+            break;  //uscita da while
 
         MessServer messServer;
-        memset(&messServer, 0, sizeof(messServer));
-        messServer.type = MSG_LOGIN;
-        if(writen_all(fd, &messServer)<0){ 
-                perror("send"); break; 
-            }
-        
-       
-    }
+        messServer.p = *p;
+        messServer.mappaPlayer = mappaLocale;
+        messServer.type = MSG_UPDATE;
 
-    if(!autenticato)
-        continue;
-
-    if(!inizializzato){
-unsigned int seed = (unsigned int)time(NULL) ^ (unsigned long)pthread_self();
-
-    // Inizializza tutta la mappa locale con caratteri spazio ' '
-    memset(mappaLocale.mappa, ' ', sizeof(mappaLocale.mappa));
-    memset(mappaLocale.mappaPlayer, ' ', sizeof(mappaLocale.mappaPlayer));
-
-    int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
-    char lettera_random = simboli[rand_r(&seed) % num_simboli];
-    Colore colore_random = (Colore)((rand_r(&seed) % 12) + 4);
-    
-    
-    *p = (Player) {
-        lettera_random,
-        5,
-        7,
-        colore_random,
-    };
-
-    int posizione_riga;
-    int posizione_colonna;
-
-    pthread_mutex_lock(&mtx);
-    addPlayer(p);
-    do {
-
-        posizione_riga = rand_r(&seed) % N;
-        posizione_colonna = rand_r(&seed) % N;
-
-        if(mappaGlobale.mappa[posizione_riga][posizione_colonna] == cella_libera) {
-            p->colonna = posizione_colonna;
-            p->riga = posizione_riga;
+        pthread_mutex_lock(&mtx);
+        for (int i = 0; i < NUM_PLAYERS; i++) {
+            if (players[i])
+                messServer.players[i] = *players[i];
+            else
+                messServer.players[i].lettera = '\0';
         }
+        pthread_mutex_unlock(&mtx);
 
-    } while(mappaGlobale.mappa[posizione_riga][posizione_colonna] != cella_libera);
 
-    mappaGlobale.mappa[p->riga][p->colonna] = p->lettera;
-    mappaLocale.mappa[p->riga][p->colonna] = p->lettera;
-
-    mappaGlobale.mappaPlayer[p->riga][p->colonna] = p->lettera;
-    mappaLocale.mappaPlayer[p->riga][p->colonna] = p->lettera;
-
-    pthread_mutex_unlock(&mtx);
-
-    inizializzato = true;
+        if (writen_all(fd, &messServer)<0) {
+            perror("send");
+            break;
+        }
     }
-    
-
 
     pthread_mutex_lock(&mtx);
-    if (messClient.movimento) {
-        uscita = invioMappaLocale(p, &mappaLocale, &mappaGlobale, messClient.direzione);
-    } else {
-        rivelaNebbia(p, &mappaLocale, &mappaGlobale);    
-    }
-    pthread_mutex_unlock(&mtx);
 
-    if(uscita)
-        break;  //uscita da while
-
-    MessServer messServer;
-    messServer.p = *p;
-    messServer.mappaPlayer = mappaLocale;
-    messServer.type = MSG_UPDATE;
-
-    pthread_mutex_lock(&mtx);
     for (int i = 0; i < NUM_PLAYERS; i++) {
-        if (players[i])
-            messServer.players[i] = *players[i];
-        else
-            messServer.players[i].lettera = '\0';
+        if (player_fds[i] == fd) {
+            player_fds[i] = -1;
+            players[i] = NULL;
+            break;
+        }
     }
+
     pthread_mutex_unlock(&mtx);
-
-
-    if (writen_all(fd, &messServer)<0) {
-        perror("send");
-        break;
-    }
-}
-
-pthread_mutex_lock(&mtx);
-
-for (int i = 0; i < NUM_PLAYERS; i++) {
-    if (player_fds[i] == fd) {
-        player_fds[i] = -1;
-        players[i] = NULL;
-        break;
-    }
-}
-
-pthread_mutex_unlock(&mtx);
     close(fd);
     free(p);
     return NULL;
@@ -377,15 +367,15 @@ int main(void) {
         int c = accept(s, NULL, NULL);
         if (c < 0) { if (errno == EINTR) continue; perror("accept"); continue; }
 
-    pthread_mutex_lock(&mtx);
-    for (int i = 0; i < NUM_PLAYERS; i++) {
-        if (player_fds[i] == -1) {
-            player_fds[i] = c;
-            break;
+        pthread_mutex_lock(&mtx);
+        for (int i = 0; i < NUM_PLAYERS; i++) {
+            if (player_fds[i] == -1) {
+                player_fds[i] = c;
+                break;
+            }
         }
-    }
 
-pthread_mutex_unlock(&mtx);
+        pthread_mutex_unlock(&mtx);
 
         int *fdp = malloc(sizeof(int));
         if (!fdp) {
@@ -395,8 +385,7 @@ pthread_mutex_unlock(&mtx);
         }
         *fdp = c;
 
-         printf("Connesso");
-
+    
         pthread_t tid;
         int rc = pthread_create(&tid, NULL, handle_client, fdp);
         if (rc != 0) {

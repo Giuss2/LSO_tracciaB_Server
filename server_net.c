@@ -202,7 +202,6 @@ bool verificaCredenziali(char username[32], char password[32]){
     }
 
     if (!trovato) {
-        printf("Login fallito: credenziali errate");  //DA CANCELLARE
         close(fd);
         pthread_mutex_unlock(&file_mtx);
         return false;
