@@ -13,13 +13,16 @@
 void addPlayer(Player* p);
 
 void *timer_thread(void *arg) {
+    
     (void)arg;
     int secondi_passati = 0;
     int durata_partita = 140; 
-    int T = 45;               // Invia la mappa globale ogni tot sec
+    int T = 20;               // Invia la mappa globale ogni tot sec
     Statistiche vincitore = { .id = '\0', .username = {0}, .celleConquistate = 0 };
 
+
     while (secondi_passati < durata_partita) {
+        
         sleep(1);
         secondi_passati++;
 
@@ -30,10 +33,15 @@ void *timer_thread(void *arg) {
             MessServer msg_periodico;
             memset(&msg_periodico, 0, sizeof(msg_periodico));
             msg_periodico.type = MSG_GLOBAL_UPDATE;
+            vincitore.id = '\0';
+            vincitore.celleConquistate = -1; // Inizia da -1 per catturare anche chi ha 0 celle
+            strcpy(vincitore.username, "Nessuno");
 
             Statistiche statistics[NUM_PLAYERS];
             memset(statistics, 0, sizeof(statistics));
+            
             for (int i = 0; i < NUM_PLAYERS; i++) {
+
                 Statistiche stat;
                 memset(&stat, 0, sizeof(Statistiche));
 
@@ -52,6 +60,7 @@ void *timer_thread(void *arg) {
             }
 
             for(int i = 0; i < NUM_PLAYERS; i++){
+                
                 msg_periodico.statistics[i] = statistics[i];
                 if (!players[i]) {
                     statistics[i].id = '\0'; 
@@ -60,13 +69,13 @@ void *timer_thread(void *arg) {
                     continue;
                 }
                
-                strcpy(statistics[i].username, players[i]->username);
 
                 if (msg_periodico.statistics[i].celleConquistate > vincitore.celleConquistate) {
                         vincitore.id = msg_periodico.statistics[i].id;
                         vincitore.celleConquistate = msg_periodico.statistics[i].celleConquistate;
                         strcpy(vincitore.username, msg_periodico.statistics[i].username);
                     }
+                    
             }
 
             //nascondi muri
@@ -161,6 +170,7 @@ static void *handle_client(void *arg) {
 
             memcpy(p->username, messClient.username, 32);
             memcpy(p->password, messClient.password, 32);
+            printf("Username player appena iscritto: %s ", p->username);
             autenticato = true;
         
             MessServer messServer;
@@ -219,7 +229,11 @@ static void *handle_client(void *arg) {
             Colore colore_random = (Colore)((rand_r(&seed) % 12) + 4);
     
     
-            *p = (Player) {lettera_random, 5, 7, colore_random, };
+            
+            p->lettera = lettera_random;
+            p->riga = 5;
+            p->colonna = 7; 
+            p->colorePlayer = colore_random;
 
             int posizione_riga;
             int posizione_colonna;
@@ -404,6 +418,8 @@ void addPlayer(Player* p){
     for(int i = 0; i < NUM_PLAYERS; i++){
         if(players[i] == NULL){
             players[i] = p;
+            printf("Aggiunto player: %s",players[i]->username);
+            printf("Aggiunto player: %c",players[i]->lettera);
             break;
         }
     }
