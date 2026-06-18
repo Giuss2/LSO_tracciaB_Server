@@ -201,6 +201,8 @@ static void *handle_client(void *arg) {
                 uscita = true;
                 continue; 
             }
+
+            
             memcpy(p->username, messClient.username, 32);
             memcpy(p->password, messClient.password, 32);
             autenticato = true;

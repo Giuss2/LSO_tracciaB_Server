@@ -188,6 +188,7 @@ bool verificaCredenziali(char username[32], char password[32]){
         }
     }
 
+    //controlla anche l'ultimo
     if (idx > 0) {
         riga[idx] = '\0';
 
@@ -206,7 +207,12 @@ bool verificaCredenziali(char username[32], char password[32]){
         pthread_mutex_unlock(&file_mtx);
         return false;
     }
-       
+    
+    //se è già loggato alla partita con questo account
+    for(int i=0; i<NUM_PLAYERS; i++){
+        if(players[i] && (strcmp(players[i]->username, username)==0))
+            return false;
+    }
 
     close(fd);
     pthread_mutex_unlock(&file_mtx);
