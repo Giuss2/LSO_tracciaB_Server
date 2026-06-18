@@ -9,8 +9,21 @@
 #include <stdlib.h>
 #include <time.h>
 #include "game.h" 
+volatile sig_atomic_t server_running = 1;
+int counter = 0;
+int main_socket_fd;
 
 void addPlayer(Player* p);
+
+void handler(int signo){
+    if(signo == SIGINT && counter>=3){
+            server_running = 0;
+            close(main_socket_fd);
+            //exit(0);
+        
+    }
+}
+
 
 void *timer_thread(void *arg) {
     
@@ -170,7 +183,6 @@ static void *handle_client(void *arg) {
 
             memcpy(p->username, messClient.username, 32);
             memcpy(p->password, messClient.password, 32);
-            printf("Username player appena iscritto: %s ", p->username);
             autenticato = true;
         
             MessServer messServer;
@@ -202,7 +214,7 @@ static void *handle_client(void *arg) {
                 continue; 
             }
 
-            
+
             memcpy(p->username, messClient.username, 32);
             memcpy(p->password, messClient.password, 32);
             autenticato = true;
@@ -330,6 +342,7 @@ int main(void) {
 
     int s = socket(AF_INET, SOCK_STREAM, 0);
     if (s < 0) { perror("socket"); return 1; }
+    main_socket_fd = s;
 
     int opt = 1;
     if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
@@ -356,6 +369,15 @@ int main(void) {
 
 
     printf("Server in ascolto su 0.0.0.0:%d (thread per connessione)\n", PORT);
+    
+
+    if (signal(SIGINT, handler) == SIG_ERR) {
+        perror("signal");
+        exit(1);
+    }else
+        printf("Premi Ctrl-C 3 volte se vuoi spegnere. \n");
+        
+        
 
     int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
 
@@ -379,9 +401,13 @@ int main(void) {
     }
     pthread_mutex_unlock(&mtx);
 
-    for(;;) {
+    while(server_running) {
         int c = accept(s, NULL, NULL);
-        if (c < 0) { if (errno == EINTR) continue; perror("accept"); continue; }
+        if (c < 0) { 
+            if (errno == EBADF) break;
+            if (errno == EINTR) continue; 
+            perror("accept"); continue; 
+        }
 
         pthread_mutex_lock(&mtx);
         for (int i = 0; i < NUM_PLAYERS; i++) {
@@ -413,15 +439,26 @@ int main(void) {
         pthread_detach(tid);
     }
 
+    pthread_mutex_lock(&mtx);
+    for (int i = 0; i < NUM_PLAYERS; i++) {
+        if (player_fds[i] != -1) {
+        // invia un messaggio di "Server in chiusura" ai client
+            close(player_fds[i]);
+            player_fds[i] = -1;
+        }
+    }
+    pthread_mutex_unlock(&mtx);
+
+    if(s>=0)
+        close(s);
     pthread_mutexattr_destroy(&attr);
+    pthread_mutex_destroy(&mtx);
 }
 
 void addPlayer(Player* p){
     for(int i = 0; i < NUM_PLAYERS; i++){
         if(players[i] == NULL){
             players[i] = p;
-            printf("Aggiunto player: %s",players[i]->username);
-            printf("Aggiunto player: %c",players[i]->lettera);
             break;
         }
     }
