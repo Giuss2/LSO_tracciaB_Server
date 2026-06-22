@@ -361,6 +361,13 @@ static void *handle_client(void *arg) {
         }
     }
 
+    for (int i = 0; i < NUM_PLAYERS; i++) {
+        if (players[i] == p) {
+            players[i] = NULL;
+            break;
+        }
+    }
+
     pthread_mutex_unlock(&mtx);
     close(fd);
     free(p);
