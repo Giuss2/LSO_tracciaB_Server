@@ -19,6 +19,7 @@ int durata_partita = 140;
 void addPlayer(Player* p);
 
 void handler(int signo){
+    counter++;
     if(signo == SIGINT && counter>=3){
             server_running = 0;
             close(main_socket_fd);
