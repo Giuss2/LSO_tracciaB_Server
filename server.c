@@ -29,6 +29,19 @@ void handler(int signo){
 
 
 void *timer_thread(void *arg) {
+
+    struct sockaddr_in addr;
+    int sock_broadcast= socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock_broadcast < 0) { perror("socket broadcast"); exit(1);}
+
+    int yes = 1;
+    if (setsockopt(sock_broadcast, SOL_SOCKET, SO_BROADCAST, &yes, sizeof(yes)) < 0) {
+        perror("SO_BROADCAST"); exit(1); 
+    }
+    // Imposta indirizzo broadcast destinazione
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET; addr.sin_port = htons(UDP_PORT);
+    addr.sin_addr.s_addr = inet_addr(BROADCAST_ADDR);
     
     (void)arg;
 
@@ -124,15 +137,26 @@ void *timer_thread(void *arg) {
 
     // Tempo scaduto!
     atomic_store(&game_over, true);
+    MessBroadcast msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.type = MSG_GAME_OVER;
 
     pthread_mutex_lock(&mtx);
     if (vincitore.id == '\0' || vincitore.username[0] == '\0')
         strcpy(vincitore.username, "Nessuno collegato");
+    
+    strcpy(msg.p.username, vincitore.username);
+    
     pthread_mutex_unlock(&mtx);
 
+    if (sendto(sock_broadcast, &msg, sizeof(MessBroadcast), 0, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("Errore nell'invio del broadcast di GAME OVER");
+        exit(1);
+    }
 
-    broadcast_game_over(&vincitore);
-    _exit(0);
+    close(sock_broadcast);
+    //broadcast_game_over(&vincitore);
+    pthread_exit(NULL);
 }
 
 static void *handle_client(void *arg) {
@@ -190,7 +214,6 @@ static void *handle_client(void *arg) {
             MessServer messServer;
             memset(&messServer, 0, sizeof(messServer));
             messServer.type = MSG_SUBSCRIBE;
-            messServer.secondi_rimanenti = durata_partita - secondi_passati;
             if(writen_all(fd, &messServer)<0){ 
                 perror("send"); break; 
             }
@@ -225,7 +248,6 @@ static void *handle_client(void *arg) {
             MessServer messServer;
             memset(&messServer, 0, sizeof(messServer));
             messServer.type = MSG_LOGIN;
-            messServer.secondi_rimanenti = durata_partita - secondi_passati;
             if(writen_all(fd, &messServer)<0){ 
                 perror("send"); break; 
             }
@@ -344,6 +366,7 @@ int main(void) {
 
     signal(SIGPIPE, SIG_IGN);
 
+
     int s = socket(AF_INET, SOCK_STREAM, 0);
     if (s < 0) { perror("socket"); return 1; }
     main_socket_fd = s;
@@ -358,7 +381,7 @@ int main(void) {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family      = AF_INET;
-    addr.sin_port        = htons(PORT);
+    addr.sin_port        = htons(TCP_PORT);
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) { perror("bind"); return 1; }
@@ -372,7 +395,7 @@ int main(void) {
     pthread_detach(timer);
 
 
-    printf("Server in ascolto su 0.0.0.0:%d (thread per connessione)\n", PORT);
+    printf("Server in ascolto su 0.0.0.0:%d (thread per connessione)\n", TCP_PORT);
     
 
     if (signal(SIGINT, handler) == SIG_ERR) {
@@ -443,7 +466,7 @@ int main(void) {
         pthread_detach(tid);
     }
 
-    pthread_mutex_lock(&mtx);
+   pthread_mutex_lock(&mtx);
     for (int i = 0; i < NUM_PLAYERS; i++) {
         if (player_fds[i] != -1) {
         // invia un messaggio di "Server in chiusura" ai client

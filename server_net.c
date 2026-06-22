@@ -41,33 +41,6 @@ ssize_t readn_all(int fd, void *buf, size_t len) {
 }
 
 
-void broadcast_game_over(Statistiche* vincitore) {
-    MessServer msg;
-    memset(&msg, 0, sizeof(msg));
-    msg.type = MSG_GAME_OVER;
-
-    int fds_locali[NUM_PLAYERS];
-    
-    strcpy(msg.p.username, vincitore->username);
-
-    pthread_mutex_lock(&mtx);
-    for (int i = 0; i < NUM_PLAYERS; i++) {
-        fds_locali[i] = player_fds[i]; // Copiamo i descrittori nell'array locale
-        if (player_fds[i] != -1) {
-            send(player_fds[i], &msg, sizeof(msg), MSG_NOSIGNAL);
-            player_fds[i] = -1; // Sanatizziamo subito l'array globale 
-        }
-    }
-    pthread_mutex_unlock(&mtx);
-
-    // pulizia sui socket
-    for (int i = 0; i < NUM_PLAYERS; i++) {
-        if (fds_locali[i] != -1) {
-            shutdown(fds_locali[i], SHUT_RDWR); 
-            close(fds_locali[i]);
-        }
-    }
-}
 
 bool registraUtente(char username[32], char password[32]){
 

@@ -7,7 +7,9 @@
 #include <sys/types.h>  // Per ssize_t, size_t
 #include <unistd.h>     // Per le syscall di I/O
 
-#define PORT        5201
+#define BROADCAST_ADDR "255.255.255.255"
+#define TCP_PORT 5201
+#define UDP_PORT 5202
 #define BACKLOG      8
 #define NUM_PLAYERS  12
 #define N            30
@@ -34,7 +36,7 @@ typedef struct player {
     Colore colorePlayer;
     char username[32];
     char password[32];
-    int fd;     // per il broadcast
+    int fd;
 } Player;
 
 typedef struct mappa {
@@ -54,9 +56,14 @@ typedef struct messServer {
      Player players[NUM_PLAYERS];
      MsgType type;
      Statistiche statistics[NUM_PLAYERS];
-     int secondi_rimanenti;
 
 } MessServer;
+
+typedef struct messBroadcast{
+    Player p;
+    Player players[NUM_PLAYERS];
+    MsgType type;
+} MessBroadcast;
 
 typedef struct messClient {
     char direzione;
