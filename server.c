@@ -22,8 +22,7 @@ void handler(int signo){
     if(signo == SIGINT && counter>=3){
             server_running = 0;
             close(main_socket_fd);
-            //exit(0);
-        
+            
     }
 }
 
@@ -154,8 +153,22 @@ void *timer_thread(void *arg) {
         exit(1);
     }
 
+    // invia anche a socket tcp che è terminata la partita
+    pthread_mutex_lock(&mtx);
+    for (int i = 0; i < NUM_PLAYERS; i++) {
+        if (player_fds[i] != -1) {
+            MessServer msg_tcp; 
+            memset(&msg_tcp, 0, sizeof(msg_tcp));
+            msg_tcp.type = MSG_GAME_OVER;
+            strcpy(msg_tcp.p.username, vincitore.username);
+        
+            writen_all(player_fds[i], &msg_tcp); 
+        }
+    }
+    pthread_mutex_unlock(&mtx);
+
     close(sock_broadcast);
-    //broadcast_game_over(&vincitore);
+    exit(0);
     pthread_exit(NULL);
 }
 
