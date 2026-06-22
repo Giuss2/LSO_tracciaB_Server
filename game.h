@@ -10,7 +10,7 @@
 #define PORT        5201
 #define BACKLOG      8
 #define NUM_PLAYERS  12
-#define N            20
+#define N            30
 #define MURO         'X'
 
 typedef enum {
@@ -54,6 +54,7 @@ typedef struct messServer {
      Player players[NUM_PLAYERS];
      MsgType type;
      Statistiche statistics[NUM_PLAYERS];
+     int secondi_rimanenti;
 
 } MessServer;
 
@@ -84,7 +85,6 @@ typedef struct messClient {
     };
     
     char simboli[] = {
-        '.', MURO,
         'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','Y','Z',
         'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','y','z'
     };

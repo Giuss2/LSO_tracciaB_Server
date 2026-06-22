@@ -13,6 +13,9 @@ volatile sig_atomic_t server_running = 1;
 int counter = 0;
 int main_socket_fd;
 
+int secondi_passati = 0;
+int durata_partita = 140; 
+
 void addPlayer(Player* p);
 
 void handler(int signo){
@@ -28,8 +31,7 @@ void handler(int signo){
 void *timer_thread(void *arg) {
     
     (void)arg;
-    int secondi_passati = 0;
-    int durata_partita = 140; 
+
     int T = 20;               // Invia la mappa globale ogni tot sec
     Statistiche vincitore = { .id = '\0', .username = {0}, .celleConquistate = 0 };
 
@@ -95,7 +97,7 @@ void *timer_thread(void *arg) {
             for (int i = 0; i < N; i++) {
                 for (int j = 0; j < N; j++) {
                     if(mappaGlobale.mappa[i][j] == MURO)
-                        msg_periodico.mappaPlayer.mappa[i][j] = '.';
+                        msg_periodico.mappaPlayer.mappa[i][j] = cella_libera;
                     else{
                         msg_periodico.mappaPlayer.mappa[i][j] = mappaGlobale.mappa[i][j];
                     }                    
@@ -188,6 +190,7 @@ static void *handle_client(void *arg) {
             MessServer messServer;
             memset(&messServer, 0, sizeof(messServer));
             messServer.type = MSG_SUBSCRIBE;
+            messServer.secondi_rimanenti = durata_partita - secondi_passati;
             if(writen_all(fd, &messServer)<0){ 
                 perror("send"); break; 
             }
@@ -222,6 +225,7 @@ static void *handle_client(void *arg) {
             MessServer messServer;
             memset(&messServer, 0, sizeof(messServer));
             messServer.type = MSG_LOGIN;
+            messServer.secondi_rimanenti = durata_partita - secondi_passati;
             if(writen_all(fd, &messServer)<0){ 
                 perror("send"); break; 
             }
@@ -389,9 +393,9 @@ int main(void) {
     for(int i = 0; i < N; i++) {
         for(int j = 0; j < N; j++) {
             if((rand_r(&seed) % 100) > 20)
-                mappaGlobale.mappa[i][j] = simboli[0];
+                mappaGlobale.mappa[i][j] = cella_libera;
             else
-                mappaGlobale.mappa[i][j] = simboli[1];
+                mappaGlobale.mappa[i][j] = MURO;
         }
     }
 
