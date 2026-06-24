@@ -26,7 +26,8 @@ typedef enum {
     MSG_GAME_OVER = 1,
     MSG_GLOBAL_UPDATE = 2,
     MSG_SUBSCRIBE = 3,
-    MSG_LOGIN = 4
+    MSG_LOGIN = 4,
+    MSG_MOVE = 5
 } MsgType;
 
 typedef struct player {
@@ -50,14 +51,14 @@ typedef struct statistiche {
     int celleConquistate;
 } Statistiche;
 
-typedef struct messServer {
+typedef struct messDaInviare {
      Mappa mappaPlayer;
      Player p;
      Player players[NUM_PLAYERS];
      MsgType type;
      Statistiche statistics[NUM_PLAYERS];
 
-} MessServer;
+} MessDaInviare;
 
 typedef struct messBroadcast{
     Player p;
@@ -65,13 +66,12 @@ typedef struct messBroadcast{
     MsgType type;
 } MessBroadcast;
 
-typedef struct messClient {
+typedef struct messRicevuto {
     char direzione;
-    bool movimento;
     char username[32];
     char password[32];
     MsgType type;
-} MessClient;
+} MessRicevuto;
 
 
 #ifdef MAIN_PROGRAM
@@ -114,7 +114,7 @@ typedef struct messClient {
 void rivelaNebbia(Player *p, Mappa* mappa, Mappa* mappaGlobale);
 bool verificaMossa(int riga, int colonna, char mappa[N][N]);
 int check_game_over();
-ssize_t writen_all(int fd, MessServer *mess);
+ssize_t writen_all(int fd, MessDaInviare *mess);
 ssize_t readn_all(int fd, void *buf, size_t len);
 bool invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
 void addPlayer(Player* p);

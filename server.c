@@ -58,7 +58,7 @@ void *timer_thread(void *arg) {
         if (secondi_passati % T == 0 && !game_over) {
             pthread_mutex_lock(&mtx);
             
-            MessServer msg_periodico;
+            MessDaInviare msg_periodico;
             memset(&msg_periodico, 0, sizeof(msg_periodico));
             msg_periodico.type = MSG_GLOBAL_UPDATE;
             vincitore.id = '\0';
@@ -158,7 +158,7 @@ void *timer_thread(void *arg) {
     pthread_mutex_lock(&mtx);
     for (int i = 0; i < NUM_PLAYERS; i++) {
         if (player_fds[i] != -1) {
-            MessServer msg_tcp; 
+            MessDaInviare msg_tcp; 
             memset(&msg_tcp, 0, sizeof(msg_tcp));
             msg_tcp.type = MSG_GAME_OVER;
             strcpy(msg_tcp.p.username, vincitore.username);
@@ -184,12 +184,12 @@ static void *handle_client(void *arg) {
     bool inizializzato = false;
 
     
-    MessClient messClient;
+    MessRicevuto messRicevuto;
     while (!game_over) {
         if (atomic_load(&game_over))
             break;
 
-        ssize_t n = readn_all(fd, &messClient, sizeof(messClient));
+        ssize_t n = readn_all(fd, &messRicevuto, sizeof(messRicevuto));
         if (n == 0)
             break;
 
@@ -202,18 +202,18 @@ static void *handle_client(void *arg) {
 
         bool uscita = false;
 
-        if(messClient.type == MSG_SUBSCRIBE && !autenticato) {
-            messClient.username[31] = '\0';
-            messClient.password[31] = '\0';
+        if(messRicevuto.type == MSG_SUBSCRIBE && !autenticato) {
+            messRicevuto.username[31] = '\0';
+            messRicevuto.password[31] = '\0';
 
-            if(!registraUtente(messClient.username, messClient.password)){
-                MessServer messServer;
-                memset(&messServer, 0, sizeof(messServer));
+            if(!registraUtente(messRicevuto.username, messRicevuto.password)){
+                MessDaInviare messDaInviare;
+                memset(&messDaInviare, 0, sizeof(messDaInviare));
 
-                messServer.type = MSG_SUBSCRIBE;
-                strcpy(messServer.p.username, "FAIL");
+                messDaInviare.type = MSG_SUBSCRIBE;
+                strcpy(messDaInviare.p.username, "FAIL");
             
-                if(writen_all(fd, &messServer)<0){ 
+                if(writen_all(fd, &messDaInviare)<0){ 
                     perror("send"); break; 
                 }
 
@@ -221,32 +221,32 @@ static void *handle_client(void *arg) {
                 continue;
             }
 
-            memcpy(p->username, messClient.username, 32);
-            memcpy(p->password, messClient.password, 32);
+            memcpy(p->username, messRicevuto.username, 32);
+            memcpy(p->password, messRicevuto.password, 32);
             autenticato = true;
         
-            MessServer messServer;
-            memset(&messServer, 0, sizeof(messServer));
-            messServer.type = MSG_SUBSCRIBE;
-            if(writen_all(fd, &messServer)<0){ 
+            MessDaInviare messDaInviare;
+            memset(&messDaInviare, 0, sizeof(messDaInviare));
+            messDaInviare.type = MSG_SUBSCRIBE;
+            if(writen_all(fd, &messDaInviare)<0){ 
                 perror("send"); break; 
             }
         
         }
     
 
-        if(messClient.type == MSG_LOGIN && !autenticato){
-            messClient.username[31] = '\0';
-            messClient.password[31] = '\0';
+        if(messRicevuto.type == MSG_LOGIN && !autenticato){
+            messRicevuto.username[31] = '\0';
+            messRicevuto.password[31] = '\0';
 
-            if(!verificaCredenziali(messClient.username, messClient.password)){
-                MessServer messServer;
-                memset(&messServer, 0, sizeof(messServer));
+            if(!verificaCredenziali(messRicevuto.username, messRicevuto.password)){
+                MessDaInviare messDaInviare;
+                memset(&messDaInviare, 0, sizeof(messDaInviare));
 
-                messServer.type = MSG_LOGIN;
-                strcpy(messServer.p.username, "FAIL");
+                messDaInviare.type = MSG_LOGIN;
+                strcpy(messDaInviare.p.username, "FAIL");
             
-                if(writen_all(fd, &messServer)<0){ 
+                if(writen_all(fd, &messDaInviare)<0){ 
                     perror("send"); break; 
                 }
 
@@ -255,14 +255,14 @@ static void *handle_client(void *arg) {
             }
 
 
-            memcpy(p->username, messClient.username, 32);
-            memcpy(p->password, messClient.password, 32);
+            memcpy(p->username, messRicevuto.username, 32);
+            memcpy(p->password, messRicevuto.password, 32);
             autenticato = true;
 
-            MessServer messServer;
-            memset(&messServer, 0, sizeof(messServer));
-            messServer.type = MSG_LOGIN;
-            if(writen_all(fd, &messServer)<0){ 
+            MessDaInviare messDaInviare;
+            memset(&messDaInviare, 0, sizeof(messDaInviare));
+            messDaInviare.type = MSG_LOGIN;
+            if(writen_all(fd, &messDaInviare)<0){ 
                 perror("send"); break; 
             }
         
@@ -320,8 +320,8 @@ static void *handle_client(void *arg) {
 
 
         pthread_mutex_lock(&mtx);
-        if (messClient.movimento) {
-            uscita = invioMappaLocale(p, &mappaLocale, &mappaGlobale, messClient.direzione);
+        if (messRicevuto.type == MSG_MOVE) {
+            uscita = invioMappaLocale(p, &mappaLocale, &mappaGlobale, messRicevuto.direzione);
         } else {
             rivelaNebbia(p, &mappaLocale, &mappaGlobale);    
         }
@@ -330,22 +330,22 @@ static void *handle_client(void *arg) {
         if(uscita)
             break;  //uscita da while
 
-        MessServer messServer;
-        messServer.p = *p;
-        messServer.mappaPlayer = mappaLocale;
-        messServer.type = MSG_UPDATE;
+        MessDaInviare messDaInviare;
+        messDaInviare.p = *p;
+        messDaInviare.mappaPlayer = mappaLocale;
+        messDaInviare.type = MSG_UPDATE;
 
         pthread_mutex_lock(&mtx);
         for (int i = 0; i < NUM_PLAYERS; i++) {
             if (players[i])
-                messServer.players[i] = *players[i];
+                messDaInviare.players[i] = *players[i];
             else
-                messServer.players[i].lettera = '\0';
+                messDaInviare.players[i].lettera = '\0';
         }
         pthread_mutex_unlock(&mtx);
 
 
-        if (writen_all(fd, &messServer)<0) {
+        if (writen_all(fd, &messDaInviare)<0) {
             perror("send");
             break;
         }

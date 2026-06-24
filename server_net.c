@@ -6,11 +6,11 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-ssize_t writen_all(int fd, MessServer *mess) {
+ssize_t writen_all(int fd, MessDaInviare *mess) {
     size_t off = 0;
 
-    while (off < sizeof(MessServer)) {
-        ssize_t w = send(fd, ((char*)mess) + off, sizeof(MessServer) - off, 0);
+    while (off < sizeof(MessDaInviare)) {
+        ssize_t w = send(fd, ((char*)mess) + off, sizeof(MessDaInviare) - off, 0);
         
         if (w < 0) { 
             if (errno == EINTR) 
