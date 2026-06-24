@@ -60,18 +60,18 @@ typedef struct messDaInviare {
 
 } MessDaInviare;
 
-typedef struct messBroadcast{
-    Player p;
-    Player players[NUM_PLAYERS];
-    MsgType type;
-} MessBroadcast;
-
 typedef struct messRicevuto {
     char direzione;
     char username[32];
     char password[32];
     MsgType type;
 } MessRicevuto;
+
+typedef struct messBroadcast{
+    Player p;
+    Player players[NUM_PLAYERS];
+    MsgType type;
+} MessBroadcast;
 
 
 #ifdef MAIN_PROGRAM
@@ -113,7 +113,6 @@ typedef struct messRicevuto {
 // PROTOTIPI 
 void rivelaNebbia(Player *p, Mappa* mappa, Mappa* mappaGlobale);
 bool verificaMossa(int riga, int colonna, char mappa[N][N]);
-int check_game_over();
 ssize_t writen_all(int fd, MessDaInviare *mess);
 ssize_t readn_all(int fd, void *buf, size_t len);
 bool invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
