@@ -117,7 +117,6 @@ ssize_t writen_all(int fd, MessDaInviare *mess);
 ssize_t readn_all(int fd, void *buf, size_t len);
 bool invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
 void addPlayer(Player* p);
-void broadcast_game_over(Statistiche* vincitore);
 void calcoloStatistiche(Statistiche* stats, Mappa* mappaGlobale);
 bool registraUtente(char username[32], char password[32]);
 bool verificaCredenziali(char username[32], char password[32]);
