@@ -416,15 +416,13 @@ int main(void) {
     pthread_detach(timer);
 
 
-    printf("Server in ascolto su 0.0.0.0:%d (thread per connessione)\n", TCP_PORT);
+    //printf("Server in ascolto su 0.0.0.0:%d (thread per connessione)\n", TCP_PORT);
     
 
     if (signal(SIGINT, handler) == SIG_ERR) {
         perror("signal");
         exit(1);
-    }else
-        printf("Premi Ctrl-C 3 volte se vuoi spegnere. \n");
-        
+    }   
         
 
     int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
@@ -479,7 +477,7 @@ int main(void) {
         pthread_t tid;
         int rc = pthread_create(&tid, NULL, handle_client, fdp);
         if (rc != 0) {
-            fprintf(stderr, "pthread_create: %s\n", strerror(rc));
+            perror("pthread_create");
             close(c);
             free(fdp);
             continue;

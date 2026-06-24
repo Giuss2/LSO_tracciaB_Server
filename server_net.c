@@ -84,7 +84,6 @@ bool registraUtente(char username[32], char password[32]){
     }
 
     if (trovato) {
-        printf("Registrazione fallita: lo username '%s' esiste già.\n", username);
         close(fd);
         pthread_mutex_unlock(&file_mtx);
         return false;
