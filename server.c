@@ -376,14 +376,10 @@ static void *handle_client(void *arg) {
 
 int main(void) {
 
-    pthread_mutexattr_t attr;
     Player* p = NULL;
 
-    pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-
-    pthread_mutex_init(&mtx, &attr);
-
+    pthread_mutex_init(&mtx, NULL);
+    pthread_mutex_init(&file_mtx, NULL);
 
     signal(SIGPIPE, SIG_IGN);
 
@@ -497,8 +493,9 @@ int main(void) {
 
     if(s>=0)
         close(s);
-    pthread_mutexattr_destroy(&attr);
+    
     pthread_mutex_destroy(&mtx);
+    pthread_mutex_destroy(&file_mtx);
 }
 
 void addPlayer(Player* p){

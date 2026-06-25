@@ -2,7 +2,6 @@ FROM ubuntu:22.04
 
 RUN apt update && apt install -y gcc
 
-
 COPY . .
 
 RUN gcc server.c server_game.c server_net.c -o server -pthread
