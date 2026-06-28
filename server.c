@@ -412,7 +412,7 @@ int main(void) {
     pthread_detach(timer);
 
 
-    //printf("Server in ascolto su 0.0.0.0:%d (thread per connessione)\n", TCP_PORT);
+    //printf("Server in ascolto su 192.168.1.187:%d (thread per connessione)\n", TCP_PORT);
     
 
     if (signal(SIGINT, handler) == SIG_ERR) {
