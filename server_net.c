@@ -41,7 +41,6 @@ ssize_t readn_all(int fd, void *buf, size_t len) {
 }
 
 
-
 bool registraUtente(char username[32], char password[32]){
 
     pthread_mutex_lock(&file_mtx);
@@ -73,6 +72,7 @@ bool registraUtente(char username[32], char password[32]){
         }
     }
 
+    //controlla anche l'ultimo
     if (idx > 0) {
         riga[idx] = '\0';
 
@@ -120,9 +120,6 @@ bool registraUtente(char username[32], char password[32]){
         ptr_write += n_written;
         rimasti -= n_written;
     }
-
-    
-    
 
     close(fd);
     pthread_mutex_unlock(&file_mtx);    
