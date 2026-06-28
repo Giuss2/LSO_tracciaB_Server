@@ -10,21 +10,21 @@ void rivelaNebbia(Player *p, Mappa* mappa, Mappa* mappaGlobale){
             if(j < 0 || i < 0 || j > N - 1 || i > N - 1)
                 continue;
 
-            mappa->mappa[i][j] = mappaGlobale->mappa[i][j];
-            mappa->mappaPlayer[i][j] = mappaGlobale->mappaPlayer[i][j];
+            mappa->planciaDiGioco[i][j] = mappaGlobale->planciaDiGioco[i][j];
+            mappa->territorioGiocatori[i][j] = mappaGlobale->territorioGiocatori[i][j];
         }
     }
 }
 
-bool verificaMossa(int riga, int colonna, char mappa[N][N]) {
+bool verificaMossa(int riga, int colonna, char planciaDiGioco[N][N]) {
 
     if(colonna < 0 || riga < 0 ||colonna > N - 1 || riga > N - 1)
         return false;
 
-    if(mappa[riga][colonna] == MURO)
+    if(planciaDiGioco[riga][colonna] == MURO)
         return false;
     
-    if(mappa[riga][colonna] != cella_libera)
+    if(planciaDiGioco[riga][colonna] != cella_libera)
         return false;
 
     return true;
@@ -61,26 +61,26 @@ bool invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappaGlobale, char d
         // --- GESTIONE USCITA GIOCO ---
         case 'U':
         case 'u':
-            mappaGlobale->mappa[p->riga][p->colonna] = cella_libera;
-            mappaGlobale->mappaPlayer[p->riga][p->colonna] = ' '; 
+            mappaGlobale->planciaDiGioco[p->riga][p->colonna] = cella_libera;
+            mappaGlobale->territorioGiocatori[p->riga][p->colonna] = ' '; 
             return true;
 
     }
 
     rivelaNebbia(p, mappaLocale, mappaGlobale);
 
-    if(verificaMossa(riga_nuova, colonna_nuova, mappaGlobale->mappa)) {
-        mappaLocale->mappa[p->riga][p->colonna] = cella_libera;
-        mappaGlobale->mappa[p->riga][p->colonna] = cella_libera;
+    if(verificaMossa(riga_nuova, colonna_nuova, mappaGlobale->planciaDiGioco)) {
+        mappaLocale->planciaDiGioco[p->riga][p->colonna] = cella_libera;
+        mappaGlobale->planciaDiGioco[p->riga][p->colonna] = cella_libera;
 
         p->colonna = colonna_nuova;
         p->riga = riga_nuova;
 
-        mappaLocale->mappaPlayer[p->riga][p->colonna] = p->lettera;
-        mappaGlobale->mappaPlayer[p->riga][p->colonna] = p->lettera;
+        mappaLocale->territorioGiocatori[p->riga][p->colonna] = p->lettera;
+        mappaGlobale->territorioGiocatori[p->riga][p->colonna] = p->lettera;
 
-        mappaLocale->mappa[p->riga][p->colonna] = p->lettera;
-        mappaGlobale->mappa[p->riga][p->colonna] = p->lettera;
+        mappaLocale->planciaDiGioco[p->riga][p->colonna] = p->lettera;
+        mappaGlobale->planciaDiGioco[p->riga][p->colonna] = p->lettera;
 
         rivelaNebbia(p, mappaLocale, mappaGlobale);
     }
@@ -92,7 +92,7 @@ void calcoloStatistiche(Statistiche* stats, Mappa* mappaGlobale) {
     stats->celleConquistate = 0;
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
-            if (stats->id == mappaGlobale->mappaPlayer[i][j]) {
+            if (stats->id == mappaGlobale->territorioGiocatori[i][j]) {
                 stats->celleConquistate++;
             }
         }

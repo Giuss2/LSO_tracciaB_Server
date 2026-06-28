@@ -109,12 +109,12 @@ void *timer_thread(void *arg) {
             //nascondi muri
             for (int i = 0; i < N; i++) {
                 for (int j = 0; j < N; j++) {
-                    if(mappaGlobale.mappa[i][j] == MURO)
-                        msg_periodico.mappaPlayer.mappa[i][j] = cella_libera;
+                    if(mappaGlobale.planciaDiGioco[i][j] == MURO)
+                        msg_periodico.mappa.planciaDiGioco[i][j] = cella_libera;
                     else{
-                        msg_periodico.mappaPlayer.mappa[i][j] = mappaGlobale.mappa[i][j];
+                        msg_periodico.mappa.planciaDiGioco[i][j] = mappaGlobale.planciaDiGioco[i][j];
                     }                    
-                    msg_periodico.mappaPlayer.mappaPlayer[i][j] = mappaGlobale.mappaPlayer[i][j];
+                    msg_periodico.mappa.territorioGiocatori[i][j] = mappaGlobale.territorioGiocatori[i][j];
                 }
             }
 
@@ -275,8 +275,8 @@ static void *handle_client(void *arg) {
             unsigned int seed = (unsigned int)time(NULL) ^ (unsigned long)pthread_self();
 
             // Inizializza tutta la mappa locale con caratteri spazio ' '
-            memset(mappaLocale.mappa, ' ', sizeof(mappaLocale.mappa));
-            memset(mappaLocale.mappaPlayer, ' ', sizeof(mappaLocale.mappaPlayer));
+            memset(mappaLocale.planciaDiGioco, ' ', sizeof(mappaLocale.planciaDiGioco));
+            memset(mappaLocale.territorioGiocatori, ' ', sizeof(mappaLocale.territorioGiocatori));
 
             int num_simboli = sizeof(simboli) / sizeof(simboli[0]);
             char lettera_random = simboli[rand_r(&seed) % num_simboli];
@@ -299,18 +299,18 @@ static void *handle_client(void *arg) {
                 posizione_riga = rand_r(&seed) % N;
                 posizione_colonna = rand_r(&seed) % N;
 
-                if(mappaGlobale.mappa[posizione_riga][posizione_colonna] == cella_libera) {
+                if(mappaGlobale.planciaDiGioco[posizione_riga][posizione_colonna] == cella_libera) {
                     p->colonna = posizione_colonna;
                     p->riga = posizione_riga;
                 }
 
-            } while(mappaGlobale.mappa[posizione_riga][posizione_colonna] != cella_libera);
+            } while(mappaGlobale.planciaDiGioco[posizione_riga][posizione_colonna] != cella_libera);
 
-            mappaGlobale.mappa[p->riga][p->colonna] = p->lettera;
-            mappaLocale.mappa[p->riga][p->colonna] = p->lettera;
+            mappaGlobale.planciaDiGioco[p->riga][p->colonna] = p->lettera;
+            mappaLocale.planciaDiGioco[p->riga][p->colonna] = p->lettera;
 
-            mappaGlobale.mappaPlayer[p->riga][p->colonna] = p->lettera;
-            mappaLocale.mappaPlayer[p->riga][p->colonna] = p->lettera;
+            mappaGlobale.territorioGiocatori[p->riga][p->colonna] = p->lettera;
+            mappaLocale.territorioGiocatori[p->riga][p->colonna] = p->lettera;
 
             pthread_mutex_unlock(&mtx);
 
@@ -332,7 +332,7 @@ static void *handle_client(void *arg) {
 
         MessDaInviare messDaInviare;
         messDaInviare.p = *p;
-        messDaInviare.mappaPlayer = mappaLocale;
+        messDaInviare.mappa = mappaLocale;
         messDaInviare.type = MSG_UPDATE;
 
         pthread_mutex_lock(&mtx);
@@ -431,9 +431,9 @@ int main(void) {
     for(int i = 0; i < N; i++) {
         for(int j = 0; j < N; j++) {
             if((rand_r(&seed) % 100) > 20)
-                mappaGlobale.mappa[i][j] = cella_libera;
+                mappaGlobale.planciaDiGioco[i][j] = cella_libera;
             else
-                mappaGlobale.mappa[i][j] = MURO;
+                mappaGlobale.planciaDiGioco[i][j] = MURO;
         }
     }
 

@@ -41,8 +41,8 @@ typedef struct player {
 } Player;
 
 typedef struct mappa {
-    char mappa[N][N];
-    char mappaPlayer[N][N];
+    char planciaDiGioco[N][N];
+    char territorioGiocatori[N][N];
 } Mappa;
 
 typedef struct statistiche {
@@ -52,7 +52,7 @@ typedef struct statistiche {
 } Statistiche;
 
 typedef struct messDaInviare {
-     Mappa mappaPlayer;
+     Mappa mappa;
      Player p;
      Player players[NUM_PLAYERS];
      MsgType type;
@@ -112,7 +112,7 @@ typedef struct messBroadcast{
 
 // PROTOTIPI 
 void rivelaNebbia(Player *p, Mappa* mappa, Mappa* mappaGlobale);
-bool verificaMossa(int riga, int colonna, char mappa[N][N]);
+bool verificaMossa(int riga, int colonna, char planciaDiGioco[N][N]);
 ssize_t writen_all(int fd, MessDaInviare *mess);
 ssize_t readn_all(int fd, void *buf, size_t len);
 bool invioMappaLocale(Player *p, Mappa *mappaLocale, Mappa *mappa, char direzione);
